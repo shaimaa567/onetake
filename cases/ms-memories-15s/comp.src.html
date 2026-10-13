@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<!-- Ms. Memories · "one line" · 1080×1920 · 15 s · built on onetake (PolyForm Noncommercial) -->
+<html lang="ar">
+<head>
+<meta charset="utf-8">
+<title>Ms. Memories · one line</title>
+<style>
+@font-face{font-family:'Tajawal';font-weight:500;src:url(data:font/ttf;base64,__FONT__) format('truetype');}
+html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#FBF8F3}
+canvas{position:absolute;left:0;top:0;width:1080px;height:1920px}
+#hud{position:absolute;right:14px;bottom:10px;font:20px monospace;color:#c00;display:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas><div id="hud"></div>
+<script src="motion.js"></script>
+<script>
+// ────────────────────────────────────────── look ──────────────────────────────────────────
+// paper white · ink black · burgundy. One material: the burgundy line.
+const W=1080,H=1920,DUR=15,FPS=30,N=360;
+const BURG='#7B1E3A', INK='#161211', PAPER='#FBF8F3', CARD='#FFFDF9';
+const {clamp,lerp,sstep,ssstep,spring,ease}=OM;
+const seg=(t,a,b)=>clamp((t-a)/(b-a),0,1);
+window.__meta={dur:DUR,fps:FPS,w:W,h:H,cuts:[],inFrame:{}};
+
+const cv=document.getElementById('c'); const DPR=window.devicePixelRatio||1;
+cv.width=W*DPR; cv.height=H*DPR; const ctx=cv.getContext('2d');
+
+// ────────────────────────────────────────── timeline (seconds) ──────────────────────────────────────────
+// 0.0 paper · 0.45 the line is drawn · 1.75 it closes into a phone · 2.45 photos land in it
+// 4.0 the phone opens into a book, the photos travel into its pages · 5.5/6.15 two page turns
+// 7.0 the book becomes a QR · 8.55 a scan reveals the video · 9.15 the frame becomes the video
+// 10.3 the video folds back into the line · 10.8–12.0 REST (nothing moves) · 12.0 the line goes under the name
+const STAGES=[
+  {t0:1.75,d:0.90,from:'swoosh',to:'phone',z:0.78,w:13},
+  {t0:4.00,d:1.00,from:'phone', to:'book', z:0.80,w:12},
+  {t0:7.00,d:0.90,from:'book',  to:'qr',   z:0.80,w:13},
+  {t0:9.15,d:0.90,from:'qr',    to:'video',z:0.78,w:13},
+  {t0:10.30,d:0.80,from:'video',to:'rest', cubic:1},
+  {t0:12.00,d:0.90,from:'rest', to:'under',cubic:1},
+];
+const FLIPS=[{t0:5.50,d:0.60},{t0:6.15,d:0.60}];
+
+// ────────────────────────────────────────── shapes: every one is N points, so any two can morph ──────────────────────────────────────────
+function resample(pts){
+  const L=[0]; for(let i=1;i<pts.length;i++) L.push(L[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
+  const tot=L[L.length-1], out=[]; let j=1;
+  for(let k=0;k<N;k++){ const d=tot*k/(N-1); while(j<L.length-1&&L[j]<d) j++; const u=(d-L[j-1])/((L[j]-L[j-1])||1);
+    out.push([pts[j-1][0]+(pts[j][0]-pts[j-1][0])*u, pts[j-1][1]+(pts[j][1]-pts[j-1][1])*u]); }
+  return out;
+}
+function rrectPts(cx,cy,w,h,r){            // closed, starts top-centre, runs clockwise
+  const x0=cx-w/2,x1=cx+w/2,y0=cy-h/2,y1=cy+h/2,p=[];
+  const arc=(ax,ay,a0,a1)=>{for(let i=0;i<=10;i++){const a=a0+(a1-a0)*i/10;p.push([ax+r*Math.cos(a),ay+r*Math.sin(a)]);}};
+  p.push([cx,y0]);p.push([x1-r,y0]);arc(x1-r,y0+r,-Math.PI/2,0);p.push([x1,y1-r]);arc(x1-r,y1-r,0,Math.PI/2);
+  p.push([x0+r,y1]);arc(x0+r,y1-r,Math.PI/2,Math.PI);p.push([x0,y0+r]);arc(x0+r,y0+r,Math.PI,Math.PI*1.5);p.push([cx,y0]);
+  return resample(p);
+}
+function quad(p0,c,p1,n=14){const o=[];for(let i=0;i<=n;i++){const u=i/n;o.push([(1-u)*(1-u)*p0[0]+2*(1-u)*u*c[0]+u*u*p1[0],(1-u)*(1-u)*p0[1]+2*(1-u)*u*c[1]+u*u*p1[1]]);}return o;}
+function bookPts(cx,cy,w,h){               // an open book's outline: spine dips at the top, pages bulge
+  const x0=cx-w/2,x1=cx+w/2,y0=cy-h/2,y1=cy+h/2,p=[];
+  p.push(...quad([cx,y0+22],[cx+w*0.24,y0-16],[x1-18,y0+2]));
+  p.push(...quad([x1-18,y0+2],[x1,y0+4],[x1,y0+26],4));
+  p.push([x1,y1-26]); p.push(...quad([x1,y1-26],[x1,y1-4],[x1-18,y1-2],4));
+  p.push(...quad([x1-18,y1-2],[cx+w*0.24,y1+14],[cx,y1-22]));
+  p.push(...quad([cx,y1-22],[cx-w*0.24,y1+14],[x0+18,y1-2]));
+  p.push(...quad([x0+18,y1-2],[x0,y1-4],[x0,y1-26],4));
+  p.push([x0,y0+26]); p.push(...quad([x0,y0+26],[x0,y0+4],[x0+18,y0+2],4));
+  p.push(...quad([x0+18,y0+2],[cx-w*0.24,y0-16],[cx,y0+22]));
+  return resample(p);
+}
+// the logo's own underline, traced from the artwork (logo.png is cropped at 60,225 and drawn at LX,LY)
+const LOGO_W=885, LOGO_H=315, LX=(W-LOGO_W)/2, LY=870-LOGO_H/2;
+const UL=[[400,497],[430,492],[460,488],[490,484],[520,480],[550,477],[580,474.5],[610,472],[640,469.5],[670,467.5],[700,465.5],[730,464],[760,462.5],[790,461],[820,459.5],[850,458.5],[880,458.5],[915,458.5]]
+  .map(([x,y])=>[LX+x-60, LY+y-225]);
+const SH={};
+SH.swoosh=resample(Array.from({length:200},(_,i)=>{const u=i/199; return [90+900*u, 1000+170*Math.sin(u*Math.PI*2.3+0.5)*(0.55+0.45*Math.sin(u*Math.PI))-30*u];}));
+SH.phone=rrectPts(540,780,520,960,64);
+SH.book =bookPts(540,800,900,620);
+SH.qr   =rrectPts(540,800,520,520,34);
+SH.video=rrectPts(540,830,540,960,40);
+SH.rest =resample([[UL[0][0],960],[UL[UL.length-1][0],960]]);
+SH.under=resample(UL);
+
+const BUF=Array.from({length:N},()=>[0,0]);
+function shapeAt(t){
+  let st=null; for(const s of STAGES) if(t>=s.t0) st=s;
+  if(!st){ for(let i=0;i<N;i++){BUF[i][0]=SH.swoosh[i][0];BUF[i][1]=SH.swoosh[i][1];} return BUF; }
+  const tau=t-st.t0; let k=tau>=st.d?1:(st.cubic?ease.cubicInOut(tau/st.d):spring(tau,st.z,st.w));
+  const A=SH[st.from],B=SH[st.to];
+  for(let i=0;i<N;i++){BUF[i][0]=lerp(A[i][0],B[i][0],k);BUF[i][1]=lerp(A[i][1],B[i][1],k);}
+  return BUF;
+}
+
+// ────────────────────────────────────────── photos: placeholders, swap for the client's own ──────────────────────────────────────────
+const PAL=[['#F3E4D6','#E8C4B2','#FBF3EA','#C98E86','#8C3A4B'],['#EFE7DC','#D8C3AE','#FFFFFF','#A89480','#5C4A3F'],
+  ['#F6E1E2','#DBA3AC','#FFF6F2','#B05468','#6D1A35'],['#E9E4DA','#BFB5A4','#FAF6EE','#8E8576','#3F3A33'],
+  ['#F4E6DC','#E2B9A0','#FFF8F0','#B87868','#7B1E3A'],['#EDE3E0','#C9A3A3','#FFF5F0','#9A5A64','#4E1A2B']];
+const HR=OM.rng(11), HILL=Array.from({length:16},()=>({a:HR(),b:HR(),p:HR()*6,q:HR()*6}));
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function photo(x,y,w,h,seed,r=16,sun=0,zoom=1){
+  const P=PAL[seed%PAL.length],R=HILL[seed%16]; ctx.save(); rr(x,y,w,h,r); ctx.clip();
+  ctx.translate(x+w/2,y+h/2); ctx.scale(zoom,zoom); ctx.translate(-x-w/2,-y-h/2);
+  const g=ctx.createLinearGradient(0,y,0,y+h); g.addColorStop(0,P[0]); g.addColorStop(1,P[1]); ctx.fillStyle=g; ctx.fillRect(x-4,y-4,w+8,h+8);
+  ctx.fillStyle=P[2]; ctx.beginPath(); ctx.arc(x+w*(0.28+0.44*R.a)+sun*w*0.3, y+h*(0.26+0.1*R.b)-sun*h*0.1*0, Math.min(w,h)*0.13,0,6.2832); ctx.fill();
+  const hill=(c,base,amp,ph)=>{ctx.fillStyle=c;ctx.beginPath();ctx.moveTo(x-4,y+h+4);for(let i=0;i<=16;i++){const u=i/16;ctx.lineTo(x+w*u,y+h*(base+amp*Math.sin(u*5+ph)));}ctx.lineTo(x+w+4,y+h+4);ctx.fill();};
+  hill(P[3],0.66,0.07,R.p); hill(P[4],0.82,0.05,R.q);
+  ctx.restore();
+}
+
+// ────────────────────────────────────────── the book's pages ──────────────────────────────────────────
+const PG={ L:[{s:[[50,40,310,230,0],[50,300,140,160,1],[210,300,150,160,2]]},{s:[[60,50,330,330,6],[60,410,160,100,7]]},{s:[[50,60,350,420,11]]}],
+           R:[{s:[[90,40,150,160,3],[260,40,150,160,4],[90,230,320,250,5]]},{s:[[40,40,370,250,8],[40,320,170,170,9],[240,320,170,170,10]]},{s:[[60,50,150,150,12],[240,50,150,150,13],[60,230,330,260,14]]}]};
+const BARS=[[50,520,220],[50,548,330],[50,576,270]];
+const PO={L:[90,490],R:[540,490]};
+function bars(side,a){ if(a<=0.01) return; const [ox,oy]=PO[side]; ctx.save(); ctx.globalAlpha=a; ctx.fillStyle='rgba(22,18,17,0.15)'; for(const [x,y,w] of BARS){ rr(ox+x,oy+y,w,7,3.5); ctx.fill(); } ctx.restore(); }
+function pageContent(side,set,barA=1){ const [ox,oy]=PO[side]; for(const [x,y,w,h,s] of PG[side][set].s) photo(ox+x,oy+y,w,h,s,12); bars(side,barA); }
+
+// phone grid → book slots: the same six photos, carried
+const PHONE_SLOTS=Array.from({length:6},(_,i)=>[320+(i%2)*232, 390+Math.floor(i/2)*274, 208, 250]);
+const BOOK_SLOTS=[...PG.L[0].s.map(([x,y,w,h])=>[PO.L[0]+x,PO.L[1]+y,w,h]), ...PG.R[0].s.map(([x,y,w,h])=>[PO.R[0]+x,PO.R[1]+y,w,h])];
+function thumbRect(i,t){
+  const a=PHONE_SLOTS[i], b=BOOK_SLOTS[i], pop=spring(t-(2.45+i*0.10),0.62,20), mv=spring(t-(4.05+i*0.06),0.72,14);
+  const s=0.7+0.3*pop; const r=[lerp(a[0],b[0],mv),lerp(a[1],b[1],mv),lerp(a[2],b[2],mv),lerp(a[3],b[3],mv)];
+  const cx=r[0]+r[2]/2, cy=r[1]+r[3]/2; return {x:cx-r[2]*s/2,y:cy-r[3]*s/2,w:r[2]*s,h:r[3]*s,op:clamp(pop*1.6,0,1),rad:lerp(20,12,mv)};
+}
+
+// ────────────────────────────────────────── QR ──────────────────────────────────────────
+const QR=[],QC=21,QS=20,QX=540-QC*QS/2,QY=800-QC*QS/2; { const R=OM.rng(77);
+  const fin=(i,j)=>{for(const [a,b] of [[0,0],[14,0],[0,14]]){const u=i-a,v=j-b;if(u>=0&&u<7&&v>=0&&v<7){const ring=u===0||u===6||v===0||v===6,core=u>=2&&u<=4&&v>=2&&v<=4;return ring||core?1:0;} if(u>=-1&&u<8&&v>=-1&&v<8)return 0;}return -1;};
+  for(let j=0;j<QC;j++)for(let i=0;i<QC;i++){const f=fin(i,j);const on=f>=0?f===1:R()<0.48; if(on)QR.push({x:QX+i*QS+QS/2,y:QY+j*QS+QS/2,d:Math.hypot(i-10,j-10)});}
+}
+
+// ────────────────────────────────────────── text ──────────────────────────────────────────
+function words(t,ws,size,cx,cy,t0,t1,color,stagger=0.09){
+  if(t<t0-0.01||t>t1+0.5) return;
+  ctx.save(); ctx.font=`500 ${size}px Tajawal`; ctx.direction='rtl'; ctx.textAlign='center';
+  const wz=ws.map(w=>ctx.measureText(w).width), sp=size*0.3, total=wz.reduce((a,b)=>a+b,0)+sp*(ws.length-1);
+  const out=sstep(t1,t1+0.3,t); let x=cx+total/2;
+  ws.forEach((w,i)=>{ x-=wz[i]/2; const r=OM.wordRise(t,t0+i*stagger,{dist:34});
+    ctx.globalAlpha=r.op*(1-out); ctx.fillStyle=Array.isArray(color)?color[i]:color;
+    ctx.save(); ctx.translate(x,cy+r.y-out*30); ctx.scale(r.s,r.s); ctx.fillText(w,0,0); ctx.restore(); x-=wz[i]/2+sp; });
+  ctx.restore();
+}
+
+// ────────────────────────────────────────── the line ──────────────────────────────────────────
+function linePath(P,e){ ctx.beginPath(); const n=Math.max(2,Math.floor(e*(N-1))+1); ctx.moveTo(P[0][0],P[0][1]); for(let i=1;i<n;i++) ctx.lineTo(P[i][0],P[i][1]); }
+function strokeLine(P,t){
+  const e=ease.sineInOut(seg(t,0.45,1.75)); if(e<=0.001) return;
+  const taper=1-sstep(1.9,2.4,t), w0=lerp(8,5,sstep(10.3,10.9,t))+5*sstep(12.2,12.7,t)-0*t;
+  ctx.save(); ctx.strokeStyle=BURG; ctx.lineCap='round'; ctx.lineJoin='round';
+  if(taper>0.02){ const n=Math.max(2,Math.floor(e*(N-1))+1);
+    for(let i=1;i<n;i++){ const u=i/(N-1), prof=0.22+0.78*Math.pow(Math.sin(Math.PI*clamp(u/Math.max(e,0.05),0,1)),0.55);
+      ctx.lineWidth=w0*lerp(1,prof,taper); ctx.beginPath(); ctx.moveTo(P[i-1][0],P[i-1][1]); ctx.lineTo(P[i][0],P[i][1]); ctx.stroke(); } }
+  else { ctx.lineWidth=w0; linePath(P,1); ctx.stroke(); }
+  ctx.restore();
+}
+
+// ────────────────────────────────────────── assets ──────────────────────────────────────────
+const logo=new Image(); logo.src='logo.png';
+
+// ────────────────────────────────────────── seek ──────────────────────────────────────────
+function seek(t){
+  ctx.setTransform(DPR,0,0,DPR,0,0); ctx.clearRect(0,0,W,H); ctx.fillStyle=PAPER; ctx.fillRect(0,0,W,H);
+  const P=shapeAt(t);
+  const fillA=sstep(2.2,2.7,t)*(1-sstep(10.35,10.8,t));
+  // 1 · the surface the line has become (phone / book / QR / video frame), closed by the line itself
+  if(fillA>0.01){ ctx.save(); ctx.globalAlpha=fillA; ctx.shadowColor='rgba(70,25,40,0.20)'; ctx.shadowBlur=46; ctx.shadowOffsetY=20; ctx.fillStyle=CARD;
+    linePath(P,1); ctx.closePath(); ctx.fill(); ctx.restore(); }
+  // 2 · phone: notch + the six photos arriving; they ride into the book
+  const notch=sstep(2.5,2.9,t)*(1-sstep(3.95,4.25,t));
+  if(notch>0.01){ ctx.save(); ctx.globalAlpha=notch; ctx.fillStyle=INK; rr(540-62,338,124,24,12); ctx.fill(); ctx.restore(); }
+  if(t<FLIPS[0].t0){ for(let i=0;i<6;i++){ if(t<2.4) break; const r=thumbRect(i,t); if(r.op<0.01) continue; ctx.save(); ctx.globalAlpha=r.op; photo(r.x,r.y,r.w,r.h,i,r.rad); ctx.restore(); } }
+  // 3 · book: pages, spine, two page turns — clipped to the book's own outline
+  const bookA=1-sstep(6.95,7.2,t);
+  if(t>=4.4&&bookA>0.01){ ctx.save(); linePath(P,1); ctx.closePath(); ctx.clip(); ctx.globalAlpha=bookA;
+    const barA=sstep(4.95,5.25,t);
+    if(t<FLIPS[0].t0){ bars('L',barA); bars('R',barA); }
+    else { let ls=0,rs=0; const f1=FLIPS[0],f2=FLIPS[1], a1=seg(t,f1.t0,f1.t0+f1.d), a2=seg(t,f2.t0,f2.t0+f2.d);
+      if(a1>=1) ls=1; if(a1>0) rs=1; if(a2>0) rs=2; if(a2>=1) ls=2;
+      pageContent('L',ls); pageContent('R',rs);
+      for(const [a,f,from,to] of [[a1,f1,0,1],[a2,f2,1,2]]){ if(a<=0||a>=1) continue; const ang=Math.PI*ease.cubicInOut(a), c=Math.cos(ang), ac=Math.abs(c);
+        ctx.save(); ctx.translate(540,0); ctx.scale(Math.max(ac,0.001),1); ctx.translate(-540,0);
+        if(c>=0){ ctx.fillStyle=CARD; ctx.fillRect(540,480,460,640); pageContent('R',from); }
+        else { ctx.fillStyle=CARD; ctx.fillRect(80,480,460,640); pageContent('L',to); }
+        ctx.restore();
+        ctx.save(); ctx.fillStyle=`rgba(60,25,35,${(0.16*Math.sin(ang)).toFixed(3)})`; const x0=540,x1=540+450*c; ctx.fillRect(Math.min(x0,x1),480,Math.abs(x1-x0),640); ctx.restore(); } }
+    const sp=sstep(4.85,5.3,t); const g=ctx.createLinearGradient(512,0,568,0); g.addColorStop(0,'rgba(60,25,35,0)'); g.addColorStop(0.5,`rgba(60,25,35,${0.10*sp})`); g.addColorStop(1,'rgba(60,25,35,0)');
+    ctx.fillStyle=g; ctx.fillRect(512,480,56,640);
+    ctx.restore(); }
+  // 4 · QR modules pop in; a scan line removes them and the video comes up behind it
+  const scanY=lerp(560,1045,ease.sineInOut(seg(t,8.55,9.15))), scanning=t>=8.5&&t<9.25, scanned=t>=9.15?1e9:(t>=8.55?scanY:-1);
+  if(t>=7.3&&t<9.25){ for(const m of QR){ const k=spring(t-(7.4+m.d*0.035),0.62,22); if(k<=0.01) continue; if(m.y<scanY-6&&t>=8.55) continue;
+      const s=QS*0.86*clamp(k,0,1.15); ctx.fillStyle=INK; ctx.globalAlpha=clamp(k*2,0,1); rr(m.x-s/2,m.y-s/2,s,s,3); ctx.fill(); } ctx.globalAlpha=1; }
+  const vidA=(t>=8.55?1:0)*(1-sstep(10.3,10.8,t));
+  if(vidA>0.01){ ctx.save(); linePath(P,1); ctx.closePath(); ctx.clip();
+    if(scanned<1e8){ ctx.beginPath(); ctx.rect(0,0,W,scanned); ctx.clip(); }
+    ctx.globalAlpha=vidA; const p=seg(t,9.6,10.9); photo(262,350,556,960,4,0,p*0.9,1+0.07*seg(t,9.0,10.8));
+    // play button, then a progress line
+    const pb=spring(t-9.45,0.6,20)*(1-sstep(9.9,10.05,t)); if(pb>0.01){ ctx.fillStyle='rgba(255,253,249,0.92)'; ctx.beginPath(); ctx.arc(540,830,66*pb,0,6.2832); ctx.fill();
+      ctx.fillStyle=BURG; ctx.beginPath(); ctx.moveTo(540-16*pb,830-26*pb); ctx.lineTo(540+28*pb,830); ctx.lineTo(540-16*pb,830+26*pb); ctx.closePath(); ctx.fill(); }
+    const pr=sstep(9.95,10.05,t); if(pr>0.01){ ctx.fillStyle='rgba(255,253,249,0.55)'; rr(340,1236,400,8,4); ctx.fill(); ctx.fillStyle=BURG; rr(340,1236,Math.max(8,400*seg(t,9.95,10.7)*0.55),8,4); ctx.fill(); }
+    ctx.restore(); }
+  if(scanning){ const sa=sstep(8.5,8.6,t)*(1-sstep(9.1,9.25,t)); ctx.save(); ctx.globalAlpha=sa; ctx.shadowColor=BURG; ctx.shadowBlur=22; ctx.strokeStyle=BURG; ctx.lineWidth=6; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(296,scanY); ctx.lineTo(784,scanY); ctx.stroke(); ctx.restore(); }
+  // 5 · the line itself, last of the pictures
+  strokeLine(P,t);
+  // 6 · the name, written left to right; the line settles under it
+  if(t>=12.5&&logo.complete){ const u=ease.sineInOut(seg(t,12.55,13.95)); ctx.save(); ctx.beginPath(); ctx.rect(LX,0,LOGO_W*u+1,H); ctx.clip(); ctx.drawImage(logo,LX,LY,LOGO_W,LOGO_H); ctx.restore(); }
+  if(t>=12.0){ ctx.save(); ctx.strokeStyle=BURG; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.lineWidth=11; linePath(P,1); ctx.stroke(); ctx.restore(); }
+  // 7 · words
+  words(t,['ذكرياتك…'],92,540,1430,1.95,3.95,[INK]);
+  words(t,['محفوظة','في','الهاتف'],92,540,1545,2.85,3.95,[BURG,INK,INK],0.11);
+  words(t,['كتاب','يشبهك'],104,540,1430,4.35,6.95,[INK,BURG],0.14);
+  words(t,['وفيديو','يعيش','بين','صفحاته'],88,540,1430,7.7,10.25,[INK,BURG,INK,INK],0.11);
+  words(t,['كل','ذكرى','تستحق','أن','تبقى'],86,540,1290,13.95,99,[INK,INK,INK,INK,BURG],0.10);
+  if(t>=14.3){ const r=OM.wordRise(t,14.3,{dist:20}); ctx.save(); ctx.globalAlpha=r.op; ctx.fillStyle=BURG; ctx.font='500 34px Tajawal'; ctx.letterSpacing='11px'; ctx.textAlign='center'; ctx.direction='ltr';
+    ctx.fillText('EVERY MEMORY MATTERS',540+5.5,1375+r.y); ctx.restore(); }
+  document.getElementById('hud').textContent='t='+t.toFixed(3);
+  return true;
+}
+window.__seek=async t=>seek(t);
+window.__ready=(async()=>{ await document.fonts.load('500 60px Tajawal'); await document.fonts.ready; try{await logo.decode();}catch(e){} return seek(0); })();
+window.__track=t=>{ const P=shapeAt(t); let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(const p of P){x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);}
+  const o={line:{x:x0,y:y0,w:x1-x0,h:y1-y0,op:seg(t,0.45,0.6)}}; if(t>=2.4&&t<FLIPS[0].t0) for(let i=0;i<6;i++){const r=thumbRect(i,t); o['photo'+i]={x:r.x,y:r.y,w:r.w,h:r.h,op:r.op};} return o; };
+window.__motion=(a,b)=>{ const A=shapeAt(a).map(p=>p.slice()), B=shapeAt(b); let m=0; for(let i=0;i<N;i+=3) m=Math.max(m,Math.hypot(A[i][0]-B[i][0],A[i][1]-B[i][1]));
+  if(a>=2.4&&b<=FLIPS[0].t0+0.1) for(let i=0;i<6;i++){const p=thumbRect(i,a),q=thumbRect(i,b); m=Math.max(m,Math.hypot(p.x-q.x,p.y-q.y));} return m; };
+const q=new URLSearchParams(location.search);
+if(q.has('t')) __ready.then(()=>seek(parseFloat(q.get('t'))));
+if(q.has('hud')) document.getElementById('hud').style.display='block';
+if(q.has('play')) __ready.then(()=>{const t0=performance.now();(function loop(){seek(((performance.now()-t0)/1000)%DUR);requestAnimationFrame(loop);})();});
+</script>
+</body>
+</html>

@@ -135,7 +135,7 @@ function frame(c, color, alpha, t) {
 
 /* ============ SCENE 1 — ذكريات … لحظات … حكايات ============ */
 function scene1(c, t) {
-  const Y = 930, S = 250;
+  const Y = 930, S = 175;
   // ① ذكريات — ترتفع مع ضبابية
   {
     const i = E.outQuart(prog(t, .15, 1.0)), o = E.inCubic(prog(t, 1.05, 1.3));
@@ -144,12 +144,12 @@ function scene1(c, t) {
   // ② لحظات — تنكشف من اليمين لليسار
   {
     const i = E.outExpo(prog(t, 1.2, 2.05)), o = E.inCubic(prog(t, 2.1, 2.35));
-    const wd = 1000;
+    const wd = 760;
     xf(c, CX, Y, { alpha: (1 - o), scale: lerp(1.06, 1, i) * (1 + o * .12), blur: o * 12, clip: [wd / 2 - wd * i, -300, wd * i, 600] },
       g => wordDots(g, 'لحظات', S, COL.ink, COL.red));
     // خط أحمر يمسح الكشف
     xf(c, CX, Y, { alpha: (1 - o) * (1 - prog(t, 1.9, 2.05)) * (i > .01 ? 1 : 0) }, g => {
-      g.fillStyle = COL.red; g.fillRect(wd / 2 - wd * i - 2, -170, 4, 340); });
+      g.fillStyle = COL.red; g.fillRect(wd / 2 - wd * i - 2, -120, 4, 240); });
   }
   // ③ حكايات — تسقط وترتد
   {
@@ -158,7 +158,7 @@ function scene1(c, t) {
     xf(c, CX, Y - (1 - b) * 520, { alpha: clamp(i * 6) * (1 - o), blur: o * 14 + (1 - E.outCubic(prog(t, 2.25, 2.6))) * 8, rot: (1 - b) * -.05 },
       g => wordDots(g, 'حكايات', S, COL.ink, COL.red));
     // ظل ارتطام
-    xf(c, CX, Y + 150, { alpha: .18 * b * (1 - o) }, g => { g.fillStyle = COL.ink; g.beginPath(); g.ellipse(0, 0, 330 * b, 12, 0, 0, 7); g.fill(); });
+    xf(c, CX, Y + 105, { alpha: .18 * b * (1 - o) }, g => { g.fillStyle = COL.ink; g.beginPath(); g.ellipse(0, 0, 240 * b, 9, 0, 0, 7); g.fill(); });
   }
   // لمسة: نقطة حمراء تتنفس في الأسفل
   const dots = [[.15, 1.3], [1.2, 2.3], [2.25, 3.3]];
@@ -178,9 +178,9 @@ function scene2(c, t) {
   const out = E.inCubic(prog(t, T.s3 - .3, T.s3));
   const a = E.outCubic(prog(tl, .1, .7));
   // العبارة
-  xf(c, CX, 690 + (1 - a) * 40, { alpha: a * (1 - out), blur: (1 - a) * 10 }, g => txt(g, 'كل ذكرى تبدأ بـ', 0, 0, 132, COL.ink, 300));
+  xf(c, CX, 690 + (1 - a) * 40, { alpha: a * (1 - out), blur: (1 - a) * 10 }, g => txt(g, 'كل ذكرى تبدأ بـ', 0, 0, 92, COL.ink, 300));
   // نافذة العجلة
-  const Yw = 1010, hw = 150, ww = 860;
+  const Yw = 1010, hw = 115, ww = 700;
   const win = E.outExpo(prog(tl, .35, 1.0));
   c.save(); c.globalAlpha = (1 - out);
   c.strokeStyle = COL.red; c.lineWidth = 3;
@@ -198,8 +198,8 @@ function scene2(c, t) {
     const idx = ((k % 5) + 5) % 5, ad = Math.abs(d);
     const al = clamp(1.15 - ad * .85) * win * (1 - out);
     const sc = (idx === 4 && k === STEPS) ? 1 + .07 * Math.sin(Math.PI * clamp(pulse * 1.6)) : 1;
-    xf(c, CX, Yw + d * 255, { alpha: al, blur: clamp(speed * .55, 0, 11) * Math.min(1, ad + .6), scale: sc * lerp(1, .88, clamp(ad)) },
-      g => txt(g, WHEEL[idx], 0, 0, 215, COL.red, 500));
+    xf(c, CX, Yw + d * 200, { alpha: al, blur: clamp(speed * .55, 0, 11) * Math.min(1, ad + .6), scale: sc * lerp(1, .88, clamp(ad)) },
+      g => txt(g, WHEEL[idx], 0, 0, 155, COL.red, 500));
   }
   c.restore();
   // حلقة عند التوقف
@@ -214,16 +214,16 @@ function scene2(c, t) {
 // يُرسم النص A / B على أي لوحة (للعرض وللأخذ بالعينات)
 function drawA(c, alpha = 1, k = 1) { // k: تقدم الكشف
   const i1 = E.outCubic(clamp(k * 2.2)), i2 = E.outExpo(clamp(k * 2.2 - .8));
-  xf(c, CX, 640 + (1 - i1) * 40, { alpha: alpha * i1, blur: (1 - i1) * 8 }, g => wordDots(g, 'لكن', 160, COL.red, COL.red, 500));
-  const wd = 1000;
-  [['ماذا لو أصبحت', 880], ['أكثر من صورة؟', 1060]].forEach(([s, y], n) => {
+  xf(c, CX, 700 + (1 - i1) * 40, { alpha: alpha * i1, blur: (1 - i1) * 8 }, g => wordDots(g, 'لكن', 116, COL.red, COL.red, 500));
+  const wd = 800;
+  [['ماذا لو أصبحت', 880], ['أكثر من صورة؟', 1020]].forEach(([s, y], n) => {
     const q = E.outExpo(clamp(k * 2.4 - .5 - n * .35));
-    xf(c, CX, y, { alpha: alpha, clip: [wd / 2 - wd * q, -200, wd * q, 400] }, g => txt(g, s, 0, 0, 148, COL.ink, 500));
+    xf(c, CX, y, { alpha: alpha, clip: [wd / 2 - wd * q, -150, wd * q, 300] }, g => txt(g, s, 0, 0, 108, COL.ink, 500));
   });
 }
 function drawB(c, alpha = 1, pop = 0) {
-  xf(c, CX, 820, { alpha }, g => txt(g, 'ماذا لو أصبحت', 0, 0, 148, COL.ink, 300));
-  xf(c, CX, 1100, { alpha, scale: 1 + .05 * Math.sin(Math.PI * pop) * (1 - pop) }, g => txt(g, 'كتابًا؟', 0, 0, 330, COL.red, 500));
+  xf(c, CX, 850, { alpha }, g => txt(g, 'ماذا لو أصبحت', 0, 0, 108, COL.ink, 300));
+  xf(c, CX, 1060, { alpha, scale: 1 + .05 * Math.sin(Math.PI * pop) * (1 - pop) }, g => txt(g, 'كتابًا؟', 0, 0, 240, COL.red, 500));
 }
 let P = null; // نقاط التفكيك
 function buildParticles() {
@@ -278,9 +278,9 @@ function scene3(c, t) {
 
 /* ============ SCENE 4 — صورك / تفاصيلك / حكايتك → كتاب ============ */
 const WORDS4 = [
-  { s: 'صورك', y: 640, t: T.s4 + .1, n: '٠١' },
-  { s: 'تفاصيلك', y: 940, t: T.s4 + .85, n: '٠٢' },
-  { s: 'حكايتك', y: 1240, t: T.s4 + 1.6, n: '٠٣' },
+  { s: 'صورك', y: 690, t: T.s4 + .1, n: '٠١' },
+  { s: 'تفاصيلك', y: 920, t: T.s4 + .85, n: '٠٢' },
+  { s: 'حكايتك', y: 1150, t: T.s4 + 1.6, n: '٠٣' },
 ];
 const G0 = T.s4 + 2.4, G1 = T.s4 + 3.1; // تجمّع الكلمات
 function bookTargets() { return [[CX - 200, 876], [CX + 230, 790], [CX + 200, 1024]]; }
@@ -355,33 +355,33 @@ function scene4(c, t) {
     const k = prog(t, w.t, w.t + .75), e = E.outQuart(k);
     // حركات مختلفة لكل كلمة
     let o = { alpha: e, scale: 1, blur: (1 - e) * 10 }, X = CX, Y = w.y, clip = null;
-    if (n === 0) { Y += (1 - e) * 70; clip = [-500, -170, 1000, 340 * (.3 + .7 * e)]; }
+    if (n === 0) { Y += (1 - e) * 70; clip = [-500, -130, 1000, 260 * (.3 + .7 * e)]; }
     if (n === 1) { o.scale = lerp(1.35, 1, e); }
     if (n === 2) { X += (1 - e) * -260; }
     // تجمّع نحو أماكن الكتاب
     X = lerp(X, tg[n][0], gk); Y = lerp(Y, tg[n][1], gk);
     o.scale *= lerp(1, .28, gk); o.alpha *= 1 - clamp((gk - .35) / .5); o.clip = null;
-    xf(c, X, Y, o, g => txt(g, w.s, 0, 0, 200, COL.ink, 500));
+    xf(c, X, Y, o, g => txt(g, w.s, 0, 0, 150, COL.ink, 500));
     // علامات: رقم + خط + أقواس
     const m = prog(t, w.t + .25, w.t + 1.0), fade = 1 - clamp(gk * 3);
     if (fade > 0) {
-      const wd = 360 + w.s.length * 32;
+      const wd = 280 + w.s.length * 24;
       c.save(); c.globalAlpha = fade * clamp(m * 2) * (1 - out);
       c.strokeStyle = COL.red; c.lineWidth = 3;
       // خط تحت الكلمة يرسم من اليمين
-      c.beginPath(); c.moveTo(CX + wd / 2, w.y + 138); c.lineTo(CX + wd / 2 - wd * E.outExpo(m), w.y + 138); c.stroke();
+      c.beginPath(); c.moveTo(CX + wd / 2, w.y + 100); c.lineTo(CX + wd / 2 - wd * E.outExpo(m), w.y + 100); c.stroke();
       // أقواس زاوية
-      const L = 38 * E.outCubic(m), bx = wd / 2 + 40, by = 140;
+      const L = 30 * E.outCubic(m), bx = wd / 2 + 30, by = 105;
       [[1, -1], [-1, 1]].forEach(([sx, sy]) => { c.beginPath(); c.moveTo(CX + sx * bx, w.y + sy * by + (-sy) * L); c.lineTo(CX + sx * bx, w.y + sy * by); c.lineTo(CX + sx * (bx - L), w.y + sy * by); c.stroke(); });
       c.restore();
-      xf(c, CX + wd / 2 + 20, w.y - 190, { alpha: fade * clamp(m * 2) * (1 - out) }, g => txt(g, w.n, 0, 0, 58, COL.red, 500));
+      xf(c, CX + wd / 2 + 20, w.y - 140, { alpha: fade * clamp(m * 2) * (1 - out) }, g => txt(g, w.n, 0, 0, 44, COL.red, 500));
     }
   });
   drawBook(c, t);
   // «كلها… في مكان واحد»
   const k2 = prog(t, T.s4 + 3.45, T.s4 + 4.1), e2 = E.outQuart(k2);
   xf(c, CX, 1450 + (1 - e2) * 40, { alpha: e2, blur: (1 - e2) * 10 }, g => {
-    txt(g, 'كلها… في مكان واحد', 0, 0, 98, COL.ink, 500);
+    txt(g, 'كلها… في مكان واحد', 0, 0, 74, COL.ink, 500);
   });
   c.restore();
 }
@@ -399,7 +399,7 @@ function scene5(c, t) {
   // الشعار — يُكشف من اليسار لليمين كأنه يُكتب
   const k = E.inOut(prog(tl, .85, 1.95));
   if (logoTint && k > 0) {
-    const lw = 880, lh = lw * logoBox.h / logoBox.w, ly = 760;
+    const lw = 760, lh = lw * logoBox.h / logoBox.w, ly = 760;
     const off = document.createElement('canvas'); off.width = lw; off.height = Math.ceil(lh);
     const g = off.getContext('2d'); g.drawImage(logoTint, 0, 0, lw, lh);
     g.globalCompositeOperation = 'destination-in';
@@ -409,28 +409,27 @@ function scene5(c, t) {
     c.save(); c.globalAlpha = clamp(k * 6); c.drawImage(off, CX - lw / 2, ly - lh / 2); c.restore();
     // «| لحظات»
     const a = E.outCubic(prog(tl, 1.55, 2.2));
-    xf(c, CX, ly + lh / 2 + 120 + (1 - a) * 24, { alpha: a, blur: (1 - a) * 8 }, g2 => {
-      const ww = tw(g2, 'لحظات', 118, 300);
-      txt(g2, 'لحظات', 0, 0, 118, COL.cream, 300);
+    xf(c, CX, ly + lh / 2 + 100 + (1 - a) * 24, { alpha: a, blur: (1 - a) * 8 }, g2 => {
+      const ww = tw(g2, 'لحظات', 92, 300);
+      txt(g2, 'لحظات', 0, 0, 92, COL.cream, 300);
       g2.fillStyle = COL.redHi; g2.fillRect(-ww / 2 - 70, -3, 36 * a, 5); g2.fillRect(ww / 2 + 34, -3, 36 * a, 5);
     });
   }
   // الشعار اللفظي
   const a2 = E.outQuart(prog(tl, 2.05, 2.75));
-  xf(c, CX, 1180 + (1 - a2) * 40, { alpha: a2, blur: (1 - a2) * 10 }, g => txt(g, 'كل ذكرى تستحق أن تبقى', 0, 0, 80, COL.cream, 500));
+  xf(c, CX, 1130 + (1 - a2) * 40, { alpha: a2, blur: (1 - a2) * 10 }, g => txt(g, 'كل ذكرى تستحق أن تبقى', 0, 0, 60, COL.cream, 500));
   // خط أحمر
   const a3 = E.outExpo(prog(tl, 2.3, 3.0));
-  c.fillStyle = COL.redHi; c.fillRect(CX - 70 * a3, 1280, 140 * a3, 4);
+  c.fillStyle = COL.redHi; c.fillRect(CX - 60 * a3, 1215, 120 * a3, 4);
   // إنستغرام
   const a4 = E.outCubic(prog(tl, 2.55, 3.15));
-  xf(c, CX, 1420 + (1 - a4) * 24, { alpha: a4 }, g => {
-    g.font = font(500, 62); g.direction = 'ltr'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillStyle = COL.cream;
+  xf(c, CX, 1340 + (1 - a4) * 24, { alpha: a4 }, g => {
+    g.font = font(500, 50); g.direction = 'ltr'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillStyle = COL.cream;
     const w = g.measureText(HANDLE).width; const tot = 68 + 22 + w; const x0 = -tot / 2;
     g.save(); g.translate(0, 0); g.restore();
     g.fillText(HANDLE, x0 + 90, 3);
     drawInsta(g, x0 + 34, 0, 1);
   });
-  frame(c, COL.cream, .22, 99);
   c.restore();
 }
 function drawInsta(g, x, y, real) {
@@ -448,7 +447,6 @@ function draw(t) {
   const sandK = E.inOut(prog(t, T.s3 - .3, T.s3 + .1)) * (1 - E.inOut(prog(t, T.s4 - .3, T.s4 + .1)));
   const base = mixHex(COL.cream, COL.sand, sandK);
   bg(c, base, mixHex('#FBF4E8', '#F3E4CD', sandK));
-  frame(c, COL.red, .38 * (1 - prog(t, T.s5 - .1, T.s5 + .3)), t);
   if (t < T.s2 + .2) scene1(c, t);
   if (t >= T.s2 - .3 && t < T.s3 + .01) scene2(c, t);
   if (t >= T.s3 - .01 && t < T.s4 + .01) scene3(c, t);

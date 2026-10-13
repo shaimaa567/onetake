@@ -1,0 +1,26 @@
+900 frames on 3 workers · shutter 180°, 8 captures per moving frame
+  32/900  15s
+  65/900  30s
+  97/900  45s
+  128/900  60s
+  163/900  75s
+  193/900  90s
+  228/900  105s
+  261/900  120s
+  298/900  135s
+  331/900  150s
+  362/900  165s
+  402/900  180s
+  463/900  195s
+  493/900  210s
+  525/900  225s
+  573/900  240s
+  608/900  255s
+  657/900  270s
+  697/900  285s
+  730/900  300s
+  767/900  315s
+  823/900  330s
+  858/900  345s
+900 frames, 6072 captures (188 still frames skipped the shutter, 118 kept a cut hard) in 353s on 3 workers; page errors: none
+wrote /home/user/onetake/cases/ts-forex-30s/draft.mp4

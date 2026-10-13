@@ -1,3 +1,7 @@
 .DS_Store
 __pycache__/
 *.pyc
+cases/ms-memories-30s/_frames/
+cases/ms-memories-30s/render.log
+cases/ms-memories-30s/*.render.json
+cases/ms-memories-30s/events.json

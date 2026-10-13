@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Ms. Memories · 30s</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+/* Ms. Memories — a 30 s, 9:16 digital-illustration film. Every picture is drawn (art.js); every value is a function of t.
+   Palette: burgundy, ivory, soft gold. Type: Reem Kufi (Arabic lines), Cormorant Garamond italic (the wordmark). */
+:root{ --wine0:#22050f; --wine1:#3f0b1c; --wine2:#5e1229; --wine3:#7f1d38; --ivory:#fff3df; --gold1:#c99a4b; --gold2:#e9c982; --gold3:#fbeabf; }
+html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:var(--wine0)}
+#stage{position:absolute;inset:0;overflow:hidden;background:var(--wine0)}
+canvas{display:block}
+#bg,#fx{position:absolute;left:0;top:0;width:1080px;height:1920px}
+#fx{pointer-events:none}
+#persp{position:absolute;inset:0;perspective:2100px;perspective-origin:540px 780px}
+#world{position:absolute;left:540px;top:780px;width:0;height:0;transform-style:preserve-3d}
+.o{position:absolute;transform-style:preserve-3d}
+.f{position:absolute;left:0;top:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.sh{position:absolute;inset:0;background:#2a0612;opacity:0;pointer-events:none}
+/* text */
+#txt{position:absolute;left:0;top:0;width:1080px;height:1920px;pointer-events:none}
+.tb{position:absolute;left:90px;width:900px;top:1330px;height:260px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;will-change:transform,opacity}
+.tb .ln{direction:rtl;text-align:center;font-family:RK,'Reem Kufi',sans-serif;font-weight:600;font-size:74px;line-height:1.62;color:var(--ivory);text-shadow:0 3px 28px rgba(26,2,10,.75),0 0 2px rgba(26,2,10,.5);text-wrap:balance}
+.tb .w{display:inline-block;will-change:transform,opacity;margin:0 .13em;white-space:nowrap}
+.tb .w.h{color:var(--gold2);text-shadow:0 0 34px rgba(233,201,130,.55),0 3px 24px rgba(26,2,10,.7)}
+.tb .orn{margin-top:14px;height:3px;width:260px;background:linear-gradient(90deg,transparent,var(--gold2),transparent);transform-origin:50% 50%}
+#logo{position:absolute;left:0;width:1080px;top:1320px;text-align:center;will-change:transform,opacity}
+#logo .m{display:inline-block;font-family:CG,'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:600;font-size:176px;line-height:1.1;letter-spacing:.005em;direction:ltr;
+  background:linear-gradient(100deg,#9a6a26 0%,#fbeabf 22%,#c99a4b 44%,#fbeabf 62%,#9a6a26 100%);background-size:260% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 8px 26px rgba(20,0,8,.6))}
+#logo .o2{margin:6px auto 0;height:3px;width:420px;background:linear-gradient(90deg,transparent,var(--gold2),transparent)}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="bg" width="1080" height="1920"></canvas>
+  <div id="persp"><div id="world"></div></div>
+  <div id="txt"></div>
+  <div id="logo"><div class="m">Ms. Memories</div><div class="o2"></div></div>
+  <canvas id="fx" width="1080" height="1920"></canvas>
+</div>
+<script src="motion.js"></script>
+<script src="art.js"></script>
+<script>
+'use strict';
+const {clamp, lerp, sstep, spring: spr, ease, rng} = OM;
+const DUR = 30, seg = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+const world = document.getElementById('world');
+window.__meta = {dur: DUR, fps: 30};
+
+/* ───────────────────────────── helpers ───────────────────────────── */
+function mk(parent, cls, w, h, css) { const e = document.createElement('div'); e.className = cls; e.style.cssText = `left:0;top:0;width:${w}px;height:${h}px;margin-left:${-w / 2}px;margin-top:${-h / 2}px;` + (css || ''); parent.appendChild(e); return e; }
+function cv(w, h, scale) { const c = document.createElement('canvas'); c.width = Math.round(w * scale); c.height = Math.round(h * scale); c.style.cssText = `width:${w}px;height:${h}px;`; return c; }
+function pose(e, p) {
+  e.style.transform = `translate3d(${p.x || 0}px,${p.y || 0}px,${p.z || 0}px) rotateZ(${p.rz || 0}deg) rotateY(${p.ry || 0}deg) rotateX(${p.rx || 0}deg) scale(${p.s == null ? 1 : p.s})`;
+  e.style.opacity = p.op == null ? 1 : p.op; e.style.display = (p.op != null && p.op <= 0.003) || p.hide ? 'none' : 'block';
+}
+function rotv(v, rx, ry, rz) {
+  const d = Math.PI / 180; let [x, y, z] = v, c = Math.cos(rx * d), s = Math.sin(rx * d); [y, z] = [y * c - z * s, y * s + z * c];
+  c = Math.cos(ry * d); s = Math.sin(ry * d); [x, z] = [x * c + z * s, -x * s + z * c];
+  c = Math.cos(rz * d); s = Math.sin(rz * d); [x, y] = [x * c - y * s, x * s + y * c]; return [x, y, z];
+}
+const mix = (a, b, k) => a + (b - a) * k;
+const mixP = (A, B, k) => ({x: mix(A.x, B.x, k), y: mix(A.y, B.y, k), z: mix(A.z, B.z, k), rx: mix(A.rx, B.rx, k), ry: mix(A.ry, B.ry, k), rz: mix(A.rz, B.rz, k), s: mix(A.s, B.s, k)});
+function keyed(t, K) {                                   // K: [[t, v, curve?] …] — the curve belongs to the leg that ENDS at the key
+  if (t <= K[0][0]) return K[0][1]; for (let i = 1; i < K.length; i++) if (t <= K[i][0]) { const u = (t - K[i - 1][0]) / (K[i][0] - K[i - 1][0]); return mix(K[i - 1][1], K[i][1], (K[i][2] || ease.smooth)(u)); } return K[K.length - 1][1];
+}
+
+/* ───────────────────────────── timeline (seconds) ───────────────────────────── */
+const T = {
+  phoneIn: 0.15, lift: 4.95, phoneOut: 5.1, converge: 7.0, bookIn: 7.35, openStart: 9.9, openEnd: 11.5,
+  flips: [11.55, 12.6, 13.6, 14.5], flipDur: 0.9,
+  phone2In: 15.55, lock: 17.75, scan0: 18.2, scan1: 19.6, success: 19.85, hero: 20.5, phone2Out: 22.3,
+  unflip: [22.55, 22.7, 22.85, 23.0], unflipDur: 0.62, coverClose: 23.55, coverCloseEnd: 24.55,
+};
+const TEXT = [
+  {id: 1, t0: 0.9, t1: 4.55, words: ['كم', 'ذكرى', 'حلوة', 'عايشة', 'في', 'تلفونك؟'], hi: [1]},
+  {id: 2, t0: 5.55, t1: 9.2, words: ['تخيّل', 'كل', 'هالذكريات', 'تجتمع', 'في', 'كتاب', 'واحد!'], hi: [5]},
+  {id: 3, t0: 10.75, t1: 15.7, words: ['مو', 'مجرد', 'ألبوم', 'صور…', 'كتاب', 'يحكي', 'قصتكم.'], hi: [4, 6]},
+  {id: 4, t0: 16.9, t1: 22.35, words: ['امسحوا', 'الرمز…', 'وعيشوا', 'اللحظة', 'من', 'جديد.'], hi: [3]},
+  {id: 5, t0: 23.35, t1: 26.85, words: ['الذكريات', 'حكايات', 'تستحق', 'أن', 'تبقى.'], hi: [1]},
+];
+const LOGO_T = 27.15;
+
+/* sound cues — score.py reads these through window.__events(); x is the screen side −1…1 */
+const EVENTS = [];
+const ev = (t, kind, v = 1, pan = 0) => EVENTS.push({t, kind, v, pan});
+ev(0.2, 'swell', 1); ev(0.55, 'whoosh', .7, 0); for (let i = 0; i < 12; i++) ev(0.7 + i * 0.1, 'pop', .55, (i % 3 - 1) * .5);
+ev(T.lift, 'shimmer', .9); ev(T.lift + 0.05, 'whoosh', .8, 0); ev(T.converge + 0.2, 'whoosh', .7, 0);
+for (let i = 0; i < 12; i++) ev(T.converge + 0.85 + i * 0.1, 'absorb', .5 + i * .03, (i % 5 - 2) * .25);
+ev(T.bookIn + 1.9, 'thump', .9); ev(T.bookIn + 1.9, 'shimmer', .8);
+ev(T.openStart + 0.05, 'cover', 1); ev(T.openEnd - 0.2, 'thump', .55);
+T.flips.forEach((f, i) => ev(f + 0.1, 'flip', .8, -0.3 + i * .12));
+ev(T.phone2In + 0.05, 'whoosh', .8, .5); ev(T.lock, 'lock', .7); ev(T.scan0, 'scan', .6); ev(T.scan0 + 0.7, 'scan', .6);
+ev(T.success, 'success', 1); ev(T.hero, 'whoosh', .7, 0); ev(T.hero + 0.25, 'shimmer', .6);
+ev(T.phone2Out, 'whoosh', .7, 0);
+T.unflip.forEach((f, i) => ev(f + 0.05, 'flip', .75, .3 - i * .1));
+ev(T.coverClose + 0.55, 'close', 1); ev(T.coverCloseEnd, 'shimmer', .9);
+ev(LOGO_T, 'logo', 1);
+window.__events = () => ({T: DUR, events: EVENTS});
+
+/* ───────────────────────────── scene objects ───────────────────────────── */
+const PH_W = 440, PH_H = 900;
+const SLOT = (() => {                                     // slot centres in the phone's own frame
+  const cols = 3, gap = 10, side = 14, cw = (400 - 2 * side - 2 * gap) / cols, ch = cw * 4 / 3, out = [];
+  for (let r = 0; r < 4; r++) for (let c = 0; c < cols; c++) out.push({x: -200 + side + cw * (c + .5) + gap * c, y: -280 + ch * (r + .5) + gap * r, w: cw, h: ch});
+  return out;
+})();
+const PHOTO_IDS = [0, 3, 1, 4, 2, 6, 5, 7, 8, 9, 10, 11];
+
+function drawPhoneBase(c, scale, screenDraw) {                 // the phone body, drawn flat; the screen is a callback
+  c.save(); c.scale(scale, scale);
+  const A = ART;
+  c.fillStyle = A.lg(c, 0, 0, 0, PH_H, [[0, '#d9b36a'], [0.5, '#8a5a1e'], [1, '#e9c982']]); A.rr(c, 0, 0, PH_W, PH_H, 74); c.fill();               // gold rim
+  c.fillStyle = A.lg(c, 0, 0, PH_W, PH_H, [[0, '#2c0c17'], [1, '#12030a']]); A.rr(c, 6, 6, PH_W - 12, PH_H - 12, 68); c.fill();                 // bezel
+  c.save(); A.rr(c, 20, 20, 400, 860, 56); c.clip(); c.translate(20, 20); screenDraw(c); c.restore();
+  c.fillStyle = '#0a0207'; A.rr(c, PH_W / 2 - 58, 34, 116, 32, 16); c.fill(); c.fillStyle = '#1d0c14'; c.beginPath(); c.arc(PH_W / 2 + 36, 50, 7, 0, Math.PI * 2); c.fill();
+  c.restore();
+}
+function gallerySkin(c) {                                  // inside a 400×860 screen
+  const A = ART; c.fillStyle = A.lg(c, 0, 0, 0, 860, [[0, '#4a0f22'], [1, '#2a0713']]); c.fillRect(0, 0, 400, 860);
+  c.fillStyle = A.lg(c, 0, 0, 400, 0, [[0, 'rgba(255,200,170,.08)'], [1, 'rgba(255,200,170,0)']]); c.fillRect(0, 0, 400, 860);
+  c.fillStyle = '#fff3df'; c.font = '600 22px RK, sans-serif'; c.textBaseline = 'middle'; c.textAlign = 'left'; c.fillText('9:41', 38, 36);
+  c.fillStyle = '#fff3df'; A.rr(c, 330, 29, 34, 15, 4); c.globalAlpha = .9; c.fill(); c.globalAlpha = 1; A.rr(c, 365, 33, 3, 7, 1.5); c.fill();
+  c.textAlign = 'right'; c.fillStyle = A.P.g2; c.font = '600 38px RK, sans-serif'; c.direction = 'rtl'; c.fillText('٣٬٤١٢', 380, 112);       // 3,412 — the size of a camera roll
+  c.direction = 'ltr'; c.strokeStyle = A.P.g2; c.lineWidth = 3; A.rr(c, 24, 90, 40, 32, 7); c.stroke(); c.beginPath(); c.moveTo(30, 116); c.lineTo(41, 102); c.lineTo(48, 110); c.lineTo(54, 104); c.lineTo(60, 116); c.stroke(); c.fillStyle = A.P.g2; c.beginPath(); c.arc(52, 98, 3, 0, 7); c.fill();
+  SLOT.forEach(s => { c.fillStyle = 'rgba(10,2,6,.55)'; A.rr(c, 200 + s.x - s.w / 2, 430 + s.y - s.h / 2, s.w, s.h, 8); c.fill(); });
+  c.fillStyle = 'rgba(10,2,6,.5)'; c.fillRect(0, 806, 400, 54);
+  for (let i = 0; i < 4; i++) { c.strokeStyle = i === 0 ? A.P.g2 : 'rgba(251,234,191,.45)'; c.lineWidth = 3; A.rr(c, 52 + i * 84, 822, 28, 22, 6); c.stroke(); }
+}
+
+/* phone 1 ─ the camera roll */
+const phone1 = mk(world, 'o', PH_W, PH_H);
+(() => {
+  for (let i = 5; i >= 1; i--) { const l = mk(phone1, 'o', PH_W - 2, PH_H - 2, `left:50%;top:50%;border-radius:72px;background:${i % 2 ? '#7a4f1b' : '#b88a3e'};transform:translateZ(${-i * 2}px)`); }
+  const base = cv(PH_W, PH_H, 1.5); phone1.appendChild(base); base.className = 'f'; base.style.backfaceVisibility = 'visible';
+  window.__phone1Canvas = base;
+})();
+/* phone 2 ─ the scanner */
+const phone2 = mk(world, 'o', PH_W, PH_H);
+const p2base = cv(PH_W, PH_H, 1.5), p2skin = cv(400, 860, 1.5);
+(() => {
+  for (let i = 5; i >= 1; i--) mk(phone2, 'o', PH_W - 2, PH_H - 2, `left:50%;top:50%;border-radius:72px;background:${i % 2 ? '#7a4f1b' : '#b88a3e'};transform:translateZ(${-i * 2}px)`);
+  p2base.className = 'f'; p2base.style.backfaceVisibility = 'visible'; phone2.appendChild(p2base);
+  p2skin.style.cssText += 'position:absolute;left:20px;top:20px;border-radius:56px;transform:translateZ(.5px)'; phone2.appendChild(p2skin);
+  const gl = mk(phone2, 'o', 400, 860, 'left:50%;top:50%;border-radius:56px;background:linear-gradient(115deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,0) 32%,rgba(255,255,255,0) 70%,rgba(255,235,200,.1) 100%);transform:translateZ(1px);pointer-events:none');
+})();
+
+/* photos ─ twelve prints that live on the phone, then in the air, then in the book */
+const photos = PHOTO_IDS.map((id, i) => {
+  const e = mk(world, 'o', 236, 314), c = cv(236, 314, 1.5); e.appendChild(c); ART.drawPhoto(c, id, {w: c.width, h: c.height});
+  const fr = document.createElement('div'); fr.style.cssText = 'position:absolute;left:-13px;top:-13px;right:-13px;bottom:-34px;background:#fffaf0;opacity:0;z-index:-1;box-shadow:0 18px 50px rgba(20,0,8,.55);transform:translateZ(-1px)'; e.appendChild(fr);
+  const gl = document.createElement('div'); gl.style.cssText = 'position:absolute;left:-60px;top:-60px;right:-60px;bottom:-60px;background:radial-gradient(closest-side,rgba(251,234,191,.55),rgba(251,234,191,0));opacity:0;transform:translateZ(-2px)'; e.appendChild(gl);
+  return {e, fr, gl, i};
+});
+
+/* book ─ spine axis at the origin of `inner`; the closed book is centred by shifting inner right by half a page */
+const PW = 470, PHT = 640, N = 5, NS = 3, SW = PW / NS, SC = 1.5;
+const glowBack = mk(world, 'o', 1500, 1500, 'background:radial-gradient(closest-side,rgba(233,201,130,.42),rgba(233,201,130,.12) 55%,rgba(233,201,130,0));');
+const shadowBack = mk(world, 'o', 1300, 1300, 'background:radial-gradient(closest-side,rgba(10,0,4,.55),rgba(10,0,4,0));');
+const bookRoot = mk(world, 'o', 0, 0), inner = mk(bookRoot, 'o', 0, 0);
+const spineP = mk(inner, 'o', 10, PHT, 'background:linear-gradient(90deg,#4a0d1f,#8a2a44 40%,#4a0d1f);');
+const foreP = mk(inner, 'o', 10, PHT, 'background:repeating-linear-gradient(90deg,#f5e6c8 0 2px,#d9c196 2px 3px);');
+const topP = mk(inner, 'o', PW, 10, 'background:repeating-linear-gradient(0deg,#f5e6c8 0 2px,#d9c196 2px 3px);');
+const botP = mk(inner, 'o', PW, 10, 'background:repeating-linear-gradient(0deg,#f5e6c8 0 2px,#d9c196 2px 3px);');
+const backCover = mk(inner, 'o', PW, PHT, 'background:linear-gradient(120deg,#6e1630,#3f0b1c);border-radius:6px');
+const leaves = [];
+const FACE = [['L0f', 'L0b'], ['L1f', 'L1b'], ['L2f', 'L2b'], ['L3f', 'L3b'], ['L4f', 'L4b']];
+function strips(face, key, side) {                        // a face → NS canvases sliced from one page drawing
+  const src = cv(PW, PHT, SC); ART.drawPage(src, key); return src;
+}
+const pageSrc = {}; FACE.flat().forEach(k => { pageSrc[k] = strips(null, k); });
+const cover = mk(inner, 'o', PW, PHT), coverFront = document.createElement('canvas'), coverBack = document.createElement('canvas');
+(() => {
+  cover.style.marginLeft = -PW + 'px'; cover.style.marginTop = -PHT / 2 + 'px'; cover.style.left = '0'; cover.style.transformOrigin = '100% 50%';
+  coverFront.width = PW * 2; coverFront.height = PHT * 2; coverBack.width = PW * SC; coverBack.height = PHT * SC; [coverFront, coverBack].forEach(c => { c.style.cssText = `width:${PW}px;height:${PHT}px;`; });
+})();
+function buildLeaf(i) {
+  const L = mk(inner, 'o', PW, PHT); L.style.marginLeft = -PW + 'px'; L.style.marginTop = -PHT / 2 + 'px'; L.style.left = '0'; L.style.transformOrigin = '100% 50%';
+  const ss = []; let parent = L;
+  for (let j = 0; j < NS; j++) {
+    const S = document.createElement('div'); S.className = 'o'; S.style.cssText = `width:${SW + 1.2}px;height:${PHT}px;top:0;transform-origin:100% 50%;`;
+    S.style.left = j === 0 ? (PW - SW - 1.2 + 1.2) + 'px' : (-SW) + 'px'; if (j === 0) S.style.left = (PW - SW - 1.2) + 'px';
+    parent.appendChild(S); parent = S;
+    const mkFace = (src, sx, back) => { const c = document.createElement('canvas'); c.width = Math.round((SW + 1.2) * SC); c.height = Math.round(PHT * SC); c.style.cssText = `width:${SW + 1.2}px;height:${PHT}px;`; c.getContext('2d').drawImage(src, sx * SC, 0, (SW + 1.2) * SC, PHT * SC, 0, 0, c.width, c.height); const d = document.createElement('div'); d.className = 'f'; d.style.cssText = `width:${SW + 1.2}px;height:${PHT}px;` + (back ? 'transform:rotateY(180deg);' : ''); d.appendChild(c); const sh = document.createElement('div'); sh.className = 'sh'; d.appendChild(sh); S.appendChild(d); return sh; };
+    const fsx = PW - (j + 1) * SW - 1.2 * (j === NS - 1 ? 0 : 0) , bsx = j * SW;
+    const fs = mkFace(pageSrc[FACE[i][0]], Math.max(0, PW - (j + 1) * SW - (j === 0 ? 0 : 0) - 0.0), false);
+    const bs = mkFace(pageSrc[FACE[i][1]], Math.min(PW - SW - 1.2, bsx), true);
+    ss.push({S, fs, bs});
+  }
+  leaves.push({L, ss});
+}
+for (let i = 0; i < N; i++) buildLeaf(i);
+const sweep = document.createElement('div'); sweep.style.cssText = 'position:absolute;inset:0;background:linear-gradient(105deg,rgba(255,240,200,0) 40%,rgba(255,240,200,.45) 50%,rgba(255,240,200,0) 60%);background-size:300% 100%;background-position:150% 0;mix-blend-mode:screen';
+const pulse = document.createElement('div'); pulse.style.cssText = 'position:absolute;inset:0;background:radial-gradient(closest-side,rgba(251,234,191,.95),rgba(251,234,191,0));opacity:0;mix-blend-mode:screen';
+const cfShade = document.createElement('div'); cfShade.className = 'sh'; const cbShade = document.createElement('div'); cbShade.className = 'sh';
+(() => {
+  const f = document.createElement('div'); f.className = 'f'; f.style.cssText = `width:${PW}px;height:${PHT}px`; f.appendChild(coverFront); f.appendChild(sweep); f.appendChild(pulse); f.appendChild(cfShade); cover.appendChild(f);
+  const b = document.createElement('div'); b.className = 'f'; b.style.cssText = `width:${PW}px;height:${PHT}px;transform:rotateY(180deg)`; b.appendChild(coverBack); b.appendChild(cbShade); cover.appendChild(b);
+})();
+// QR page furniture — brackets, a scan line and a lock ring ride on the page itself (child of leaf 4's container)
+const qrFx = mk(inner, 'o', PW, PHT, 'left:0;');
+qrFx.style.marginLeft = -PW + 'px'; qrFx.style.marginTop = -PHT / 2 + 'px';
+const QR = {x: 112, y: 180, s: 246};
+const brackets = document.createElement('div'); brackets.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%';
+['tl', 'tr', 'bl', 'br'].forEach(k => { const b = document.createElement('div'); b.style.cssText = `position:absolute;width:44px;height:44px;border:6px solid #e9c982;border-radius:10px;filter:drop-shadow(0 0 8px rgba(233,201,130,.9));` + (k[0] === 't' ? 'border-bottom:none;' : 'border-top:none;') + (k[1] === 'l' ? 'border-right:none;' : 'border-left:none;'); b.dataset.k = k; brackets.appendChild(b); });
+const scanLine = document.createElement('div'); scanLine.style.cssText = `position:absolute;left:${QR.x - 8}px;width:${QR.s + 16}px;height:34px;background:linear-gradient(180deg,rgba(251,234,191,0),rgba(251,234,191,.85) 70%,rgba(251,234,191,0));box-shadow:0 0 30px rgba(233,201,130,.9);border-bottom:3px solid #fbeabf;opacity:0`;
+const ringFx = document.createElement('div'); ringFx.style.cssText = `position:absolute;left:${QR.x + QR.s / 2 - 150}px;top:${QR.y + QR.s / 2 - 150}px;width:300px;height:300px;border-radius:50%;border:5px solid #fbeabf;opacity:0;box-shadow:0 0 40px rgba(233,201,130,.9)`;
+qrFx.appendChild(brackets); qrFx.appendChild(scanLine); qrFx.appendChild(ringFx);
+const scrim = mk(world, 'o', 3600, 3600, 'background:radial-gradient(closest-side,rgba(34,5,15,.55),rgba(34,5,15,.85));');
+const heroGlow = mk(world, 'o', 1500, 1500, 'background:radial-gradient(closest-side,rgba(251,234,191,.55),rgba(233,201,130,.18) 50%,rgba(233,201,130,0));');
+
+/* ───────────────────────────── text ───────────────────────────── */
+const txtRoot = document.getElementById('txt');
+const tblocks = TEXT.map(d => {
+  const b = document.createElement('div'); b.className = 'tb'; const ln = document.createElement('div'); ln.className = 'ln'; b.appendChild(ln);
+  const ws = d.words.map((w, i) => { const s = document.createElement('span'); s.className = 'w' + (d.hi.includes(i) ? ' h' : ''); s.textContent = w; ln.appendChild(s); ln.appendChild(document.createTextNode(' ')); return s; });
+  const o = document.createElement('div'); o.className = 'orn'; b.appendChild(o); txtRoot.appendChild(b); return {d, b, ws, o};
+});
+const logoEl = document.getElementById('logo');
+
+/* ───────────────────────────── phone 2's screen: viewfinder → code → video ───────────────────────────── */
+function drawScanner(t) {
+  const c = p2skin.getContext('2d'), s = p2skin.width / 400; c.setTransform(s, 0, 0, s, 0, 0); const A = ART;
+  const near = sstep(T.phone2In + 0.2, T.lock, t);                  // the code grows in the lens as the phone comes in
+  c.fillStyle = A.lg(c, 0, 0, 0, 860, [[0, '#6e5a49'], [0.5, '#a58968'], [1, '#4a3a30']]); c.fillRect(0, 0, 400, 860);       // the page, out of focus
+  A.glow(c, 200, 400, 360, 'rgba(255,238,205,.7)');
+  const qs = mix(170, 262, near), qx = 200 - qs / 2, qy = 410 - qs / 2 + Math.sin(t * 2.1) * 3 * (1 - near);
+  c.fillStyle = '#fffaf0'; A.rr(c, qx - 18, qy - 18, qs + 36, qs + 36, 18); c.fill(); A.drawQR(c, qx, qy, qs, '#3f0b1c', '#fffaf0');
+  const lock = sstep(T.lock - 0.45, T.lock, t), bs = mix(380, qs + 30, ease.expoOut(seg(t, T.lock - 0.5, T.lock + 0.1)));
+  c.strokeStyle = '#e9c982'; c.lineWidth = 6; c.lineCap = 'round'; const L = 52;
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy]) => { const px = 200 + sx * bs / 2, py = 410 + sy * bs / 2; c.beginPath(); c.moveTo(px - sx * L, py); c.lineTo(px, py); c.lineTo(px, py - sy * L); c.stroke(); });
+  if (t > T.scan0 && t < T.scan1 + 0.1) {
+    const u = (t - T.scan0) / (T.scan1 - T.scan0), y = qy + (qs) * (0.5 - 0.5 * Math.cos(u * Math.PI * 4)) ;
+    c.fillStyle = A.lg(c, 0, y - 36, 0, y, [[0, 'rgba(251,234,191,0)'], [1, 'rgba(251,234,191,.8)']]); c.fillRect(qx - 20, y - 36, qs + 40, 36); c.fillStyle = '#fbeabf'; c.fillRect(qx - 20, y - 1.5, qs + 40, 3);
+  }
+  c.fillStyle = 'rgba(20,4,10,.55)'; c.fillRect(0, 0, 400, 118); c.fillRect(0, 730, 400, 130);
+  c.fillStyle = '#fff3df'; c.font = '600 22px RK, sans-serif'; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('9:41', 38, 36);
+  c.strokeStyle = 'rgba(251,234,191,.9)'; c.lineWidth = 4; c.beginPath(); c.arc(200, 794, 30, 0, 7); c.stroke(); c.fillStyle = 'rgba(251,234,191,.25)'; c.beginPath(); c.arc(200, 794, 24, 0, 7); c.fill();
+  // the success ring, then the video opens from the code outward
+  const vk = seg(t, T.success, T.success + 0.8);
+  if (t >= T.success - 0.25 && vk < 1) {
+    const ok = 1 - seg(t, T.success - 0.25, T.success + 0.25); c.save(); c.globalAlpha = Math.max(0, ok); c.strokeStyle = '#e9c982'; c.lineWidth = 8; c.beginPath(); c.arc(200, 410, 120 + 20 * (1 - ok), 0, 7); c.stroke(); c.restore();
+  }
+  if (vk > 0) {
+    c.save(); c.beginPath(); c.arc(200, 410, ease.expoOut(vk) * 980, 0, 7); c.clip();
+    const tv = Math.max(0, t - T.success); c.save(); c.translate(0, 0); A.drawVideo(c, 400, 860 * 400 / 400 * 1, tv); c.restore();
+    c.fillStyle = 'rgba(20,4,10,.35)'; c.fillRect(0, 0, 400, 108);
+    c.fillStyle = '#fff3df'; c.font = '600 22px RK, sans-serif'; c.textAlign = 'left'; c.fillText('9:41', 38, 36);
+    c.fillStyle = 'rgba(255,243,223,.35)'; A.rr(c, 36, 802, 328, 6, 3); c.fill(); c.fillStyle = '#e9c982'; A.rr(c, 36, 802, 328 * clamp(0.04 + tv / 10, 0, 1), 6, 3); c.fill(); c.beginPath(); c.arc(36 + 328 * clamp(0.04 + tv / 10, 0, 1), 805, 9, 0, 7); c.fill();
+    c.restore();
+  }
+  if (t > T.success - 0.05 && t < T.success + 0.4) { c.fillStyle = `rgba(255,244,214,${0.9 * (1 - seg(t, T.success - 0.05, T.success + 0.4))})`; c.fillRect(0, 0, 400, 860); }
+  c.fillStyle = 'rgba(255,255,255,0)'; // (no overlay — the glass sheen is a DOM layer)
+}
+
+/* ───────────────────────────── background & grain (screen space) ───────────────────────────── */
+const bgc = document.getElementById('bg').getContext('2d');
+const BOKEH = (() => { const R = rng(9); return Array.from({length: 16}, () => ({x: R() * 1080, y: R() * 1920, r: 60 + R() * 150, a: .035 + R() * .07, vx: (R() - .5) * 14, vy: (R() - .5) * 10, ph: R() * 6})); })();
+function drawBG(t) {
+  const c = bgc, warm = sstep(23.5, 26.5, t), A = ART;
+  c.fillStyle = A.rg(c, 540, 700 + 80 * warm, 60, 1500, [[0, mixColor([128, 28, 56], [150, 40, 70], warm)], [0.5, '#4a0d1f'], [1, '#1d040c']]); c.fillRect(0, 0, 1080, 1920);
+  A.glow(c, 880, 220, 700, 'rgba(233,201,130,.20)', .9 + .1 * Math.sin(t * .8));
+  A.glow(c, 120, 1500, 760, 'rgba(201,103,122,.18)');
+  c.save(); c.globalCompositeOperation = 'screen';
+  BOKEH.forEach(b => { const x = ((b.x + b.vx * t) % 1300 + 1300) % 1300 - 110, y = ((b.y + b.vy * t) % 2100 + 2100) % 2100 - 90; c.fillStyle = A.rg(c, x, y, 0, b.r, [[0, `rgba(251,225,170,${b.a * (0.7 + 0.3 * Math.sin(t * .7 + b.ph))})`], [1, 'rgba(251,225,170,0)']]); c.fillRect(x - b.r, y - b.r, b.r * 2, b.r * 2); });
+  c.restore();
+  // soft god-rays from the upper right
+  c.save(); c.globalCompositeOperation = 'screen'; for (let i = 0; i < 4; i++) { const a = 2.15 + i * 0.12 + Math.sin(t * .25 + i) * .02; c.fillStyle = A.lg(c, 940, -60, 940 + Math.cos(a) * 1500, -60 + Math.sin(a) * 1500, [[0, 'rgba(251,234,191,.10)'], [1, 'rgba(251,234,191,0)']]); c.beginPath(); c.moveTo(940, -60); c.lineTo(940 + Math.cos(a - .035) * 2200, -60 + Math.sin(a - .035) * 2200); c.lineTo(940 + Math.cos(a + .035) * 2200, -60 + Math.sin(a + .035) * 2200); c.closePath(); c.fill(); } c.restore();
+}
+function mixColor(a, b, k) { return `rgb(${a.map((v, i) => Math.round(mix(v, b[i], k))).join(',')})`; }
+function drawFX() {                                       // fixed: a vignette and dither noise, so the dark gradient never bands in the encode
+  const c = document.getElementById('fx').getContext('2d'), A = ART;
+  c.fillStyle = A.rg(c, 540, 900, 520, 1300, [[0, 'rgba(18,2,8,0)'], [1, 'rgba(18,2,8,.55)']]); c.fillRect(0, 0, 1080, 1920);
+  const n = document.createElement('canvas'); n.width = n.height = 256; const nc = n.getContext('2d'), im = nc.createImageData(256, 256), R = rng(77);
+  for (let i = 0; i < 256 * 256; i++) { const w = R() > .5 ? 255 : 0; im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = w; im.data[i * 4 + 3] = Math.floor(R() * 7); } nc.putImageData(im, 0, 0);
+  c.fillStyle = c.createPattern(n, 'repeat'); c.fillRect(0, 0, 1080, 1920);
+}
+
+/* ───────────────────────────── the camera ───────────────────────────── */
+const CAMK = {
+  z:  [[0, -520], [1.7, 0, ease.cubicOut], [3.2, 20, ease.sineInOut], [4.9, 120, ease.sineInOut], [6.6, -80, ease.cubicInOut], [8.6, -10, ease.sineInOut], [9.7, 60, ease.sineInOut], [11.8, 20, ease.cubicInOut], [15.2, 90, ease.sineInOut], [16.6, 150, ease.cubicInOut], [20.2, 150, ease.sineInOut], [21.0, 40, ease.cubicInOut], [22.6, 40, ease.sineInOut], [24.4, -20, ease.cubicInOut], [30, 90, ease.sineInOut]],
+  y:  [[0, 0], [9.6, 0, ease.smooth], [11.6, 30, ease.cubicInOut], [15.4, 30, ease.smooth], [16.7, -150, ease.cubicInOut], [20.0, -150, ease.smooth], [21.0, -40, ease.cubicInOut], [22.6, -40, ease.smooth], [24.6, 0, ease.cubicInOut], [26.8, 0], [27.9, -90, ease.cubicInOut]],
+  x:  [[0, 0], [15.4, 0, ease.smooth], [16.7, 24, ease.cubicInOut], [20.0, 24, ease.smooth], [21.0, 0, ease.cubicInOut]],
+  rx: [[0, 7], [1.8, 1, ease.cubicOut], [6.0, 3, ease.sineInOut], [9.8, 0, ease.sineInOut], [16.6, 4, ease.cubicInOut], [21.0, 0, ease.cubicInOut], [30, 0]],
+  ry: [[0, -9], [1.8, 0, ease.cubicOut], [30, 0]],
+};
+const SHAKES = [[1.2, 5, 10], [T.converge + 1.9, 6, 9], [T.openStart + 1.55, 7, 9], [T.success, 7, 9], [T.coverClose + 0.95, 8, 8], [LOGO_T, 5, 8]];
+function camAt(t) {
+  const hand = sstep(0.2, 1.0, t), e = hand * 5;
+  let x = keyed(t, CAMK.x) + e * (Math.sin(1.1 * t) + .5 * Math.sin(2.3 * t + 1)), y = keyed(t, CAMK.y) + e * (Math.sin(.9 * t + 2) + .5 * Math.sin(2.7 * t));
+  let rx = keyed(t, CAMK.rx) + .35 * Math.sin(.7 * t), ry = keyed(t, CAMK.ry) + .5 * Math.sin(.55 * t + 1), rz = .25 * Math.sin(.43 * t);
+  for (const [th, amp, decay] of SHAKES) { const s = OM.shake(t, th, {amp, decay, seed: Math.round(th * 100)}); x += s.x; y += s.y; rz += s.rot * 40; }
+  return {x, y, z: keyed(t, CAMK.z), rx, ry, rz};
+}
+
+/* ───────────────────────────── book kinematics ───────────────────────────── */
+const lerpA = (t, t0, t1, c = ease.cubicInOut) => c(seg(t, t0, t1));
+function coverAngle(t) {                                  // 0 closed → 180 open, then back
+  const open = ease.expoOut(seg(t, T.openStart, T.openEnd)) , close = ease.cubicInOut(seg(t, T.coverClose, T.coverCloseEnd));
+  return 180 * (open - close);
+}
+function leafAngle(i, t) {
+  const f = ease.cubicInOut(seg(t, T.flips[i], T.flips[i] + T.flipDur)) + 0.0, u = ease.cubicInOut(seg(t, T.unflip[3 - i], T.unflip[3 - i] + T.unflipDur));
+  return 180 * (f - u);
+}
+function bookPose(t) {
+  const ac = coverAngle(t), o = sstep(0, 180, ac) , emerge = spr(t - T.bookIn, 0.62, 12);
+  const flat = ease.smooth(clamp(ac / 180)), sway = Math.sin(t * .9);
+  const closeEnd = sstep(T.coverClose + 0.6, T.coverCloseEnd, t), logoUp = ease.cubicInOut(seg(t, 26.9, 28.3));
+  const rx = mix(mix(-7, 13, flat), mix(-5, 0, 1), 0) - 6 * logoUp * 0 + 0, ry0 = mix(-18 + 4 * sway, 0.6 * sway, flat);
+  return {
+    x: 0, y: mix(-10, 0, flat) + 10 * Math.sin(t * .8) * (1 - flat) - 200 * logoUp - 28 * (flat * 0),
+    z: 0, rx: mix(-7, 12, flat) + (1 - flat) * 2 * sway - 6 * logoUp * (1 - flat), ry: ry0 - (1 - flat) * 0,
+    s: mix(0.58, 1, emerge) * mix(1, 0.94, logoUp) * (t < T.bookIn ? 0 : 1), op: sstep(T.bookIn, T.bookIn + 0.5, t), flat, ac, emerge, innerX: 235 * (1 - flat),
+  };
+}
+function bookThickness(t, ac) { return mix(74, 14, ease.smooth(clamp(ac / 180))); }
+
+/* ───────────────────────────── phone poses ───────────────────────────── */
+function phone1Pose(t) {
+  const k = spr(t - T.phoneIn, 0.7, 10), go = ease.cubicInOut(seg(t, T.phoneOut, T.phoneOut + 1.9));
+  return {
+    x: mix(60, 0, k) + 0, y: 6 * Math.sin(t * .9) + 520 * go - 12, z: mix(-760, 0, k) - 980 * go, rx: mix(-16, -4, k) + 2.5 * Math.sin(t * .6 + 1) + 22 * go, ry: mix(36, 15, k) + 4 * Math.sin(t * .8), rz: mix(-12, -3, k) + 1.6 * Math.sin(t * .5) + 8 * go,
+    s: mix(0.7, 1.1, k) * (1 - .25 * go), op: sstep(T.phoneIn, T.phoneIn + .35, t) * (1 - sstep(6.2, 7.0, t)),
+  };
+}
+function phone2Pose(t) {
+  const A = {x: 470, y: 920, z: 520, rx: -62, ry: -30, rz: 18, s: .6};
+  const B = {x: -168, y: 330, z: 330, rx: -34, ry: -10, rz: 6, s: .62};
+  const H = {x: 0, y: 10, z: 360, rx: 0, ry: 0, rz: 0, s: .86};
+  const O = {x: 0, y: 1000, z: 120, rx: 38, ry: 8, rz: -7, s: .8};
+  const a = ease.expoOut(seg(t, T.phone2In, T.phone2In + 1.5)), h = ease.cubicInOut(seg(t, T.success + 0.08, T.hero + 0.75)), o = ease.cubicInOut(seg(t, T.phone2Out, T.phone2Out + 1.0));
+  let p = mixP(A, B, a); p = mixP(p, H, h); p = mixP(p, O, o);
+  const hover = 1 - h;
+  p.y += 7 * Math.sin(t * 1.3) * hover; p.rz += 1.2 * Math.sin(t * .9) * hover; p.rx += 1.5 * Math.sin(t * 1.1 + 2) * hover;
+  p.op = sstep(T.phone2In, T.phone2In + .25, t) * (1 - sstep(T.phone2Out + .5, T.phone2Out + 1.0, t)); return p;
+}
+
+/* ───────────────────────────── seek ───────────────────────────── */
+function seek(t) {
+  const cam = camAt(t);
+  world.style.transform = `translate3d(${cam.x}px,${cam.y}px,${cam.z}px) rotateX(${cam.rx}deg) rotateY(${cam.ry}deg) rotateZ(${cam.rz}deg)`;
+  drawBG(t);
+
+  /* phone 1 */
+  const P1 = phone1Pose(t); pose(phone1, P1);
+
+  /* photos */
+  const lifted = ART.P; const ringC = {x: 0, y: -40};
+  photos.forEach((p, i) => {
+    const sl = SLOT[i], order = (i % 3) * 3 + Math.floor(i / 3), tpop = T.phoneIn + 0.55 + i * 0.075;                 // diagonal wave across the grid
+    const slotLocal = rotv([sl.x * P1.s, sl.y * P1.s, 4], P1.rx, P1.ry, P1.rz);
+    const slotW = {x: P1.x + slotLocal[0], y: P1.y + slotLocal[1], z: P1.z + slotLocal[2], rx: P1.rx, ry: P1.ry, rz: P1.rz, s: P1.s * sl.w / 236};
+    const pop = spr(t - tpop, 0.55, 17);
+    const t0 = T.lift + order * 0.07, lk = spr(t - t0, 0.78, 10), lin = seg(t, t0, t0 + 0.9);
+    const th = i / 12 * Math.PI * 2 + 0.62 * (t - T.lift) + .3;
+    const ringW = {x: 392 * Math.cos(th), y: -30 + 262 * Math.sin(th), z: 230 * Math.sin(th) + 40 * Math.cos(th * 2), rx: 9 * Math.sin(th), ry: -30 * Math.cos(th), rz: ((i * 37) % 17 - 8) * .9 + 4 * Math.sin(t * 1.2 + i), s: .82 + .12 * Math.sin(th + 1)};
+    let pp = mixP(slotW, ringW, clamp(lk, 0, 1.12)); pp.z += 230 * Math.sin(Math.PI * ease.smooth(lin)) * (t < T.converge ? 1 : 0);
+    // converge into the book
+    const tc = T.converge + i * 0.1, kc = ease.cubicInOut(seg(t, tc, tc + 0.85));
+    const bk = bookPose(Math.max(t, T.bookIn)); const tgt = {x: 0, y: bk.y - 10, z: 14, rx: bk.rx, ry: bk.ry, rz: 0, s: .3};
+    if (kc > 0) pp = mixP(pp, tgt, kc);
+    pp.op = (t < tpop - 0.05 ? 0 : 1) * clamp(pop * 2, 0, 1) * (1 - sstep(.86, 1, kc)) ;
+    pp.s *= clamp(pop, 0, 1.15) * (1 - .5 * sstep(.8, 1, kc));
+    pose(p.e, pp);
+    p.fr.style.opacity = sstep(t0, t0 + .5, t); p.gl.style.opacity = clamp(.9 * Math.sin(Math.PI * clamp(lin * 1.2, 0, 1)) * (1 - kc) + .5 * sstep(.6, .95, kc) * (1 - sstep(.95, 1, kc)), 0, 1);
+  });
+
+  /* book */
+  const B = bookPose(t), TH = bookThickness(t, B.ac);
+  pose(bookRoot, {x: B.x, y: B.y, z: B.z, rx: B.rx, ry: B.ry, s: B.s, op: B.op});
+  inner.style.transform = `translate3d(${B.innerX}px,0,0)`;
+  glowBack.style.opacity = B.op * (0.55 + .45 * B.flat * .6 + .25 * Math.sin(t * .9)); pose(glowBack, {x: B.x, y: B.y, z: -260, s: 1, op: B.op * (.5 + .12 * Math.sin(t * .9) + .3 * sstep(23.8, 25.5, t))});
+  pose(shadowBack, {x: B.x, y: B.y + 40, z: -120, s: B.s, op: B.op * .7});
+  spineP.style.width = TH + 'px'; spineP.style.marginLeft = -TH / 2 + 'px'; pose(spineP, {x: 0, y: 0, z: -TH / 2, ry: 90});
+  foreP.style.width = TH + 'px'; foreP.style.marginLeft = -TH / 2 + 'px'; pose(foreP, {x: -PW, y: 0, z: -TH / 2, ry: 90});
+  topP.style.height = TH + 'px'; topP.style.marginTop = -TH / 2 + 'px'; pose(topP, {x: -PW / 2, y: -PHT / 2, z: -TH / 2, rx: 90});
+  botP.style.height = TH + 'px'; botP.style.marginTop = -TH / 2 + 'px'; pose(botP, {x: -PW / 2, y: PHT / 2, z: -TH / 2, rx: 90});
+  pose(backCover, {x: -PW / 2, y: 0, z: -TH});
+  const ac = B.ac, cf = ac / 180;
+  pose(cover, {x: 0, y: 0, z: 0, ry: ac}); cover.style.transform = `rotateY(${ac}deg)`; cover.style.transformOrigin = '100% 50%';
+  const sinc = Math.abs(Math.sin(ac * Math.PI / 180));
+  cfShade.style.opacity = .55 * sinc; cbShade.style.opacity = .55 * sinc;
+  const sw = seg(t, T.bookIn + 1.7, T.bookIn + 2.5) ; sweep.style.backgroundPosition = `${mix(150, -50, ease.cubicInOut(sw))}% 0`;
+  let pl = 0; for (let i = 0; i < 12; i++) { const ta = T.converge + 0.85 + i * 0.1; if (t > ta) pl += Math.exp(-(t - ta) * 8) * .22; } pulse.style.opacity = clamp(pl, 0, .9) * (1 - sstep(8.8, 9.4, t));
+  leaves.forEach((lf, i) => {
+    const a = i < 4 ? leafAngle(i, t) : 0, f = ease.smooth(a / 180), d = 14 * Math.sin(a * Math.PI / 180);
+    const zU = -(TH * (.12 + .76 * i / (N - 1))), zF = 2.4 + i * 1.5;
+    lf.L.style.transform = `translate3d(0,0,${mix(zU, zF, f)}px)`;
+    let cum = a;
+    lf.ss.forEach((s, j) => { const rel = j === 0 ? a : -d; s.S.style.transform = `rotateY(${rel}deg)`; if (j) cum += rel; const dark = .5 * Math.abs(Math.sin(cum * Math.PI / 180)); s.fs.style.opacity = dark; s.bs.style.opacity = dark; });
+  });
+  qrFx.style.transform = `translate3d(0,0,${leaves[4] ? -(TH * (.12 + .76)) + .8 + 2.2 : 0}px)`;
+  const qk = ease.cubicOut(seg(t, T.phone2In + .6, T.phone2In + 1.4)) , brk = ease.expoOut(seg(t, T.lock - 0.5, T.lock + 0.1)), qvis = (t > T.phone2In + .5 && t < T.success + .9) ? 1 : 0;
+  brackets.style.opacity = qvis * qk * (1 - sstep(T.success + .3, T.success + .8, t));
+  brackets.children.forEach ? 0 : 0;
+  [...brackets.children].forEach(b => { const k = b.dataset.k, pad = mix(80, 14, brk), sz = QR.s; b.style.left = (k[1] === 'l' ? QR.x - pad : QR.x + sz + pad - 44) + 'px'; b.style.top = (k[0] === 't' ? QR.y - pad : QR.y + sz + pad - 44) + 'px'; });
+  const su = seg(t, T.scan0, T.scan1); scanLine.style.opacity = (su > 0 && su < 1) ? 1 : 0; scanLine.style.top = (QR.y - 17 + QR.s * (0.5 - 0.5 * Math.cos(su * Math.PI * 4))) + 'px';
+  const rk = seg(t, T.success, T.success + 0.9); ringFx.style.opacity = rk > 0 && rk < 1 ? (1 - rk) : 0; ringFx.style.transform = `scale(${.4 + 2.6 * ease.expoOut(rk)})`;
+
+  /* scrim + hero light for the video moment */
+  const sc = ease.smooth(seg(t, T.success + .1, T.hero + .6)) * (1 - ease.smooth(seg(t, T.phone2Out - .1, T.phone2Out + .8)));
+  pose(scrim, {x: 0, y: 0, z: 120, s: 1, op: .94 * sc}); pose(heroGlow, {x: 0, y: 10, z: 230, s: 1, op: .8 * sc});
+
+  /* phone 2 */
+  drawScanner(t); pose(phone2, phone2Pose(t));
+
+  /* text */
+  tblocks.forEach(b => {
+    const d = b.d, vis = t > d.t0 - .05 && t < d.t1 + .6; b.b.style.display = vis ? 'flex' : 'none'; if (!vis) return;
+    const out = OM.liftOut(t, d.t1, {dur: .42, dist: 46, blur: 0, grow: .02});
+    b.b.style.opacity = out.op; b.b.style.transform = `translateY(${out.dy}px) scale(${out.s})`;
+    b.ws.forEach((w, i) => { const r = OM.wordRise(t, d.t0 + i * .14, {dist: 34, s0: .9, ds: .1, omega: 20, zeta: .62}); w.style.opacity = r.op; w.style.transform = `translateY(${r.y}px) scale(${r.s})`; });
+    const ok = spr(t - d.t0 - .35, .8, 12); b.o.style.transform = `scaleX(${clamp(ok, 0, 1.1)})`; b.o.style.opacity = clamp(ok, 0, 1);
+  });
+  const lk = OM.wordRise(t, LOGO_T, {dist: 40, s0: .88, ds: .12, omega: 14, zeta: .7});
+  logoEl.style.opacity = t >= LOGO_T ? lk.op : 0; logoEl.style.transform = `translateY(${lk.y}px) scale(${lk.s})`;
+  logoEl.querySelector('.m').style.backgroundPosition = `${mix(0, 100, seg(t, LOGO_T, LOGO_T + 2.6))}% 0`;
+  logoEl.querySelector('.o2').style.transform = `scaleX(${clamp(spr(t - LOGO_T - .3, .8, 10), 0, 1.1)})`;
+  return true;
+}
+window.__seek = async t => seek(t);
+
+/* ───────────────────────────── ready: fonts, then every drawing ───────────────────────────── */
+window.__ready = (async () => {
+  await Promise.all([document.fonts.load('600 40px RK', 'كتاب٠١٢ 9:41'), document.fonts.load('italic 600 40px CG', 'Ms. Memories'), document.fonts.load('500 40px RK', 'كتاب')]);
+  await document.fonts.ready;
+  drawPhoneBase(window.__phone1Canvas.getContext('2d'), 1.5, gallerySkin);
+  drawPhoneBase(p2base.getContext('2d'), 1.5, c => { c.fillStyle = '#12030a'; c.fillRect(0, 0, 400, 860); });
+  ART.drawCover(coverFront); ART.drawEndpaper(coverBack); drawFX();
+  const q = new URLSearchParams(location.search); if (q.has('t')) seek(parseFloat(q.get('t'))); else seek(0);
+  if (q.has('play')) { const t0 = performance.now(); (function loop() { seek(((performance.now() - t0) / 1000) % DUR); requestAnimationFrame(loop); })(); }
+  return true;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+ "comp": "/home/user/onetake/cases/ms-memories-15s/comp.html",
+ "fps": 30,
+ "scale": 1,
+ "size": [
+  1080,
+  1920
+ ],
+ "shutter": 180.0,
+ "samples": "adaptive",
+ "gap_px": 24.0,
+ "samples_per_moving_frame": {
+  "4": 386
+ },
+ "workers": 3,
+ "frames": 450,
+ "still_frames": 64,
+ "cut_frames": 49,
+ "captures": 1672,
+ "seconds": 133.1,
+ "final": false
+}

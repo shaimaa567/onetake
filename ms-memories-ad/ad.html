@@ -281,19 +281,52 @@ const WORDS4 = [
   { s: 'حكايتك', y: 1150, t: T.s4 + 1.6, n: '٠٣' },
 ];
 const G0 = T.s4 + 2.4, G1 = T.s4 + 3.1; // تجمّع الكلمات
-function bookTargets() { return [[CX, 860], [CX, 860], [CX, 860]]; }
+function bookTargets() { return [[CX, 830], [CX, 830], [CX, 830]]; }
 const bookImg = new Image();
+// الكتاب الواقعي: ظلال حقيقية + الصفحة اليسرى تنفتح من العمود
+const BP = 90, SPA = 339.75, SPB = -0.1172;   // خط العمود في إحداثيات الصورة المقصوصة: x = SPA + SPB*y
+let bookSh1 = null, bookSh2 = null, bookTmp = null;
+function prepBook() {
+  const w = bookImg.width, h = bookImg.height;
+  const mk = (blur, col) => {
+    const cn = document.createElement('canvas'); cn.width = w + 2 * BP; cn.height = h + 2 * BP; const g = cn.getContext('2d');
+    g.filter = `blur(${blur}px)`; g.drawImage(bookImg, BP, BP); g.filter = 'none';
+    g.globalCompositeOperation = 'source-in'; g.fillStyle = col; g.fillRect(0, 0, cn.width, cn.height); return cn;
+  };
+  bookSh1 = mk(24, '#2a0a10'); bookSh2 = mk(4, '#1a0508');
+  bookTmp = document.createElement('canvas'); bookTmp.width = w; bookTmp.height = h;
+}
+function bookHalf(g, side, k) {
+  const w = bookImg.width, h = bookImg.height, x0 = y => SPA + SPB * y;
+  g.save();
+  if (side === 'L') g.transform(k, 0, (1 - k) * SPB, 1, (1 - k) * SPA, 0);
+  g.beginPath();
+  if (side === 'L') { g.moveTo(-BP, -BP); g.lineTo(x0(-BP), -BP); g.lineTo(x0(h + BP), h + BP); g.lineTo(-BP, h + BP); }
+  else { g.moveTo(x0(-BP), -BP); g.lineTo(w + BP, -BP); g.lineTo(w + BP, h + BP); g.lineTo(x0(h + BP), h + BP); }
+  g.closePath(); g.clip();
+  g.globalAlpha = .34 * (side === 'L' ? clamp(k * 2) : 1); g.drawImage(bookSh1, -BP, -BP + 26);
+  g.globalAlpha = .42 * (side === 'L' ? clamp(k * 2) : 1); g.drawImage(bookSh2, -BP, -BP + 6);
+  g.globalAlpha = 1;
+  let img = bookImg;
+  if (side === 'L' && k < .999) { // تظليل أثناء الانفتاح
+    const tg = bookTmp.getContext('2d'); tg.clearRect(0, 0, w, h); tg.globalCompositeOperation = 'source-over'; tg.drawImage(bookImg, 0, 0);
+    tg.globalCompositeOperation = 'source-atop';
+    const gr = tg.createLinearGradient(SPA, 0, 0, 0); gr.addColorStop(0, 'rgba(20,0,5,0)'); gr.addColorStop(1, `rgba(20,0,5,${.55 * (1 - k)})`);
+    tg.fillStyle = gr; tg.fillRect(0, 0, w, h); img = bookTmp;
+  }
+  g.drawImage(img, 0, 0);
+  g.restore();
+}
 function drawBook(c, t) {
-  // صورة الكتاب المفتوح كما هي
-  const op = E.outCubic(prog(t, G0 + .1, G0 + 1.0));
-  if (op <= 0.003) return;
-  const bw = 860, bh = bw * bookImg.height / bookImg.width, Cy = 860;
-  const zoom = 1 + .035 * prog(t, G0 + 1, T.s5);
-  xf(c, CX, Cy, { alpha: op, scale: lerp(1.07, 1, op) * zoom }, g => {
-    g.shadowColor = 'rgba(40,10,15,.35)'; g.shadowBlur = 50; g.shadowOffsetY = 26;
-    g.fillStyle = '#fff'; rr(g, -bw / 2, -bh / 2, bw, bh, 10); g.fill(); g.shadowColor = 'transparent';
-    g.save(); rr(g, -bw / 2, -bh / 2, bw, bh, 10); g.clip();
-    g.drawImage(bookImg, -bw / 2, -bh / 2, bw, bh); g.restore();
+  const op = E.outCubic(prog(t, G0 + .35, G0 + .95));
+  if (op <= 0.003 || !bookSh1) return;
+  const w = bookImg.width, h = bookImg.height, bw = 960, sc = bw / w, Cy = 830;
+  const k = 1;                                              // الكتاب مفتوح وموجود (بدون حركة فتح)
+  const zoom = 1 + .035 * prog(t, G0 + .9, T.s5);
+  xf(c, CX, Cy, { alpha: op, scale: lerp(1.05, 1, op) * zoom, rot: lerp(.015, 0, op) }, g => {
+    g.imageSmoothingQuality = 'high'; g.scale(sc, sc); g.translate(-w / 2, -h / 2);
+    bookHalf(g, 'R', 1);
+    if (k > .004) bookHalf(g, 'L', k);
   });
 }
 function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); return true; }
@@ -348,7 +381,7 @@ function scene4(c, t) {
   drawBook(c, t);
   // «كلها… في مكان واحد»
   const k2 = prog(t, T.s4 + 3.45, T.s4 + 4.1), e2 = E.outQuart(k2);
-  xf(c, CX, 1500 + (1 - e2) * 40, { alpha: e2, blur: (1 - e2) * 10 }, g => {
+  xf(c, CX, 1330 + (1 - e2) * 40, { alpha: e2, blur: (1 - e2) * 10 }, g => {
     txt(g, 'كلها… في مكان واحد', 0, 0, 74, COL.ink, 500);
   });
   c.restore();
@@ -439,8 +472,8 @@ window.WORDS4 = WORDS4;
 window.ready = (async () => {
   await Promise.all([document.fonts.load('300 100px Tajawal', 'ذكريات'), document.fonts.load('500 100px Tajawal', 'ذكريات')]);
   await new Promise((res, rej) => { logoImg.onload = res; logoImg.onerror = rej; logoImg.src = 'assets/logo.png'; });
-  await new Promise((res, rej) => { bookImg.onload = res; bookImg.onerror = rej; bookImg.src = 'assets/book.webp'; });
-  prepLogo(); buildParticles(); return true;
+  await new Promise((res, rej) => { bookImg.onload = res; bookImg.onerror = rej; bookImg.src = 'assets/book_cutout.png'; });
+  prepLogo(); prepBook(); buildParticles(); return true;
 })();
 </script>
 </body>

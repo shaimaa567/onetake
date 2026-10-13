@@ -134,39 +134,37 @@ function frame(c, color, alpha, t) {
 }
 
 /* ============ SCENE 1 — ذكريات … لحظات … حكايات ============ */
+// كلمة + ثلاث نقاط حمراء تظهر تباعًا (dk: 0..3)
+function wordDots3(c, word, size, cw, cd, dk) {
+  const ww = tw(c, word, size), r = size * .052, gap = size * .1, dW = 6 * r + 2 * gap, g0 = size * .09, tot = ww + g0 + dW;
+  txt(c, word, tot / 2 - ww / 2, 0, size, cw);
+  const x0 = -tot / 2 + dW, by = size * .3;
+  for (let i = 0; i < 3; i++) {
+    const a = clamp(dk - i), e = E.outCubic(a);
+    c.save(); c.globalAlpha *= a; c.fillStyle = cd; c.beginPath(); c.arc(x0 - r - i * (2 * r + gap), by - (1 - e) * 14, r, 0, 7); c.fill(); c.restore();
+  }
+}
 function scene1(c, t) {
   const Y = 930, S = 175;
-  // ① ذكريات — ترتفع مع ضبابية
+  const exit = (a, b) => E.inOut(prog(t, a, b));
+  // ① ذكريات — تتضح تدريجيًا (تركيز العدسة)
   {
-    const i = E.outQuart(prog(t, .15, 1.0)), o = E.inCubic(prog(t, 1.05, 1.3));
-    xf(c, CX, Y + lerp(90, 0, i) - o * 60, { alpha: i * (1 - o), blur: (1 - i) * 18 + o * 10, scale: lerp(1.08, 1, i) }, g => wordDots(g, 'ذكريات', S, COL.ink, COL.red));
+    const i = E.outCubic(prog(t, .15, 1.15)), o = exit(1.15, 1.45);
+    xf(c, CX, Y, { alpha: i * (1 - o), blur: (1 - i) * 22 + o * 12, scale: lerp(1.1, 1, i) * lerp(1, .97, o) },
+      g => wordDots3(g, 'ذكريات', S, COL.ink, COL.red, (t - .75) / .14));
   }
-  // ② لحظات — تنكشف من اليمين لليسار
+  // ② لحظات — انزلاق ناعم أفقي من اليمين
   {
-    const i = E.outExpo(prog(t, 1.2, 2.05)), o = E.inCubic(prog(t, 2.1, 2.35));
-    const wd = 760;
-    xf(c, CX, Y, { alpha: (1 - o), scale: lerp(1.06, 1, i) * (1 + o * .12), blur: o * 12, clip: [wd / 2 - wd * i, -300, wd * i, 600] },
-      g => wordDots(g, 'لحظات', S, COL.ink, COL.red));
-    // خط أحمر يمسح الكشف
-    xf(c, CX, Y, { alpha: (1 - o) * (1 - prog(t, 1.9, 2.05)) * (i > .01 ? 1 : 0) }, g => {
-      g.fillStyle = COL.red; g.fillRect(wd / 2 - wd * i - 2, -120, 4, 240); });
+    const i = E.outQuart(prog(t, 1.2, 2.2)), o = exit(2.2, 2.5);
+    xf(c, CX + (1 - i) * 130 - o * 90, Y, { alpha: i * (1 - o), blur: (1 - i) * 16 + o * 12 },
+      g => wordDots3(g, 'لحظات', S, COL.ink, COL.red, (t - 1.8) / .14));
   }
-  // ③ حكايات — تسقط وترتد
+  // ③ حكايات — تنكشف صعودًا من خط القاعدة
   {
-    const i = prog(t, 2.25, 3.0), o = E.inCubic(prog(t, 3.1, 3.3));
-    const b = E.outBounce(i);
-    xf(c, CX, Y - (1 - b) * 520, { alpha: clamp(i * 6) * (1 - o), blur: o * 14 + (1 - E.outCubic(prog(t, 2.25, 2.6))) * 8, rot: (1 - b) * -.05 },
-      g => wordDots(g, 'حكايات', S, COL.ink, COL.red));
-    // ظل ارتطام
-    xf(c, CX, Y + 105, { alpha: .18 * b * (1 - o) }, g => { g.fillStyle = COL.ink; g.beginPath(); g.ellipse(0, 0, 240 * b, 9, 0, 0, 7); g.fill(); });
+    const i = E.outCubic(prog(t, 2.3, 3.2)), o = exit(3.1, 3.3);
+    xf(c, CX, Y + (1 - i) * 50, { alpha: clamp(i * 5) * (1 - o), blur: o * 14, clip: [-540, 150 - 300 * i, 1080, 300 * i + 40] },
+      g => wordDots3(g, 'حكايات', S, COL.ink, COL.red, (t - 2.85) / .14));
   }
-  // لمسة: نقطة حمراء تتنفس في الأسفل
-  const dots = [[.15, 1.3], [1.2, 2.3], [2.25, 3.3]];
-  dots.forEach(([a, b], k) => {
-    const on = prog(t, a + .1, a + .4) * (1 - prog(t, b - .1, b));
-    c.save(); c.globalAlpha = on; c.fillStyle = COL.red;
-    c.beginPath(); c.arc(CX + (k - 1) * 40, 1340, 6, 0, 7); c.fill(); c.restore();
-  });
 }
 
 /* ============ SCENE 2 — كل ذكرى تبدأ بـ … (عجلة الكلمات) ============ */

@@ -107,15 +107,15 @@ for (a, b, notes) in chords:
         f = midi(m)
         for det in (-.0045, .0, .0045):
             ff = f * (1 + det)
-            seg += (np.sin(2 * np.pi * ff * tt) + .35 * np.sin(2 * np.pi * 2 * ff * tt) + .12 * np.sin(2 * np.pi * 3 * ff * tt)) * (1 / (1 + (m - 40) / 18))
+            seg += (np.sin(2 * np.pi * ff * tt) + .12 * np.sin(2 * np.pi * 2 * ff * tt)) * (1 / (1 + (m - 40) / 18))
     pad[i0:i1] += seg * env
 pad /= np.max(np.abs(pad))
 # slow swell: rising across the whole film
-swell = .22 + .78 * np.clip(t_all / (T["s5"] + .3), 0, 1) ** 1.1
+swell = .35 + .65 * np.clip(t_all / (T["s5"] + .3), 0, 1) ** 1.3
 swell *= np.clip((END - t_all) / .7, 0, 1)
 # tremolo-ish breathing
 breath = 1 + .08 * np.sin(2 * np.pi * t_all / 3.0)
-pad *= swell * breath * .5
+pad *= swell * breath * .55
 L += pad * .95; R += pad * 1.0
 revL += pad * .35; revR += pad * .35
 
@@ -132,73 +132,54 @@ def arpeggio(t0, t1, step, gain, pat=(0, 1, 2, 3, 2, 1)):
     t = t0; k = 0
     while t < t1:
         ch = chord_at(t)
-        m = ch[pat[k % len(pat)] % len(ch)] + 12
-        place(pluck(midi(m), 1.2, .8), t, gain * (.8 + .2 * ((k % 3) == 0)), pan=np.sin(k * 1.3) * .5, send=.45)
+        m = ch[pat[k % len(pat)] % len(ch)]
+        place(pluck(midi(m), 1.6, .15), t, gain * (.8 + .2 * ((k % 3) == 0)), pan=np.sin(k * 1.3) * .5, send=.45)
         t += step; k += 1
 
-arpeggio(3.4, 6.1, .3, .14)
-arpeggio(6.9, 8.4, .6, .09, (0, 2, 1, 3))
-arpeggio(10.4, 12.7, .3, .15)
-arpeggio(12.7, 14.7, .15, .12)
-arpeggio(15.0, 17.7, .3, .13, (0, 2, 4, 3, 2, 1))
+arpeggio(3.6, 6.1, 1.2, .10, (0, 2, 1, 3))
+arpeggio(10.6, 14.7, 1.2, .10, (0, 2, 1, 3))
+arpeggio(15.2, 17.6, 1.2, .10, (0, 2, 4, 3))
 
 # ---------------- SFX synced to the picture ----------------
 # Scene 1: three word entrances
 for t0, m in [(.15, 69), (1.2, 72), (2.25, 76)]:
-    place(whoosh(.7, 250, 3500, .6, .22), t0 - .12, 1, pan=0, send=.3)
-    place(pluck(midi(m), 1.6, 1), t0 + .12, .45, send=.5)
+    place(whoosh(.9, 150, 900, .6, .10), t0 - .15, 1, pan=0, send=.3)
+    place(pluck(midi(m - 12), 2.0, .1), t0 + .1, .30, send=.6)
 # bounce on the third word
-for k, tt in enumerate([2.62, 2.8, 2.92]):
-    place(thump(160, 70, .25), tt, .2 / (k + 1), send=.1)
 # Scene 2: line in + wheel ticks (ascending pentatonic) + stop
-place(whoosh(.6, 400, 4000, .6, .18), T["s2"] + .0, 1)
-place(click(1500), T["s2"] + .4, .4)
+place(whoosh(.7, 150, 900, .6, .10), T["s2"] + .0, 1)
 scale = [69, 72, 74, 76, 79, 81, 84, 86, 88, 91, 93, 96, 98, 100]
 for k, tk in enumerate(ev["ticks"]):
     f = midi(scale[min(k, len(scale) - 1)] - 12)
-    place(click(2200 + 120 * k) * .6, tk, .5, pan=((k % 2) - .5) * .5, send=.2)
-    place(pluck(f, .4, .5), tk, .12, send=.4)
+    place(click(800 + 25 * k, .04) * .5, tk, .22, pan=((k % 2) - .5) * .4, send=.15)
 t_stop = ev["SP1"]
-place(thump(150, 45, 1.0), t_stop, .85, send=.3)
-place(bell(midi(93), 2.6), t_stop, .5, send=.6)
-place(bell(midi(88), 2.6), t_stop + .02, .3, send=.6)
+place(thump(120, 45, 1.0), t_stop, .5, send=.3)
+place(bell(midi(81), 2.6), t_stop, .22, send=.6)
 # Scene 3: shimmer, morph riser, boom
-place(whoosh(.9, 300, 3000, .5, .2), T["s3"] + .0, 1)
-place(pluck(midi(69), 2, .6), T["s3"] + .15, .3, send=.6)
-place(click(1800), T["s3"] + .6, .3)
-place(click(2400), T["s3"] + 1.0, .3)
+place(whoosh(.9, 150, 900, .5, .10), T["s3"] + .0, 1)
 M0, M1 = ev["M0"], ev["M1"]
-rise = whoosh(M1 - M0 + .1, 500, 9000, .92, .6)
+rise = whoosh(M1 - M0 + .1, 200, 2800, .92, .30)
 place(rise, M0 - .05, 1, pan=0, send=.5)
-place(sparkle(M1 - M0, 90, 2500, 7500, .22), M0, 1, pan=0, send=.6)
-place(thump(120, 38, 1.4), M1, .95, send=.3)
-place(bell(midi(88), 3), M1, .5, send=.7)
-place(bell(midi(81), 3), M1 + .03, .35, send=.7)
+place(sparkle(M1 - M0, 14, 1500, 3500, .10), M0, 1, pan=0, send=.6)
+place(thump(100, 38, 1.4), M1, .5, send=.3)
+place(bell(midi(76), 3), M1, .25, send=.7)
 # Scene 4: three word hits, gather, page flip, book
 for k, tw_ in enumerate(ev["words4"]):
-    place(whoosh(.45, 600, 4500, .6, .22), tw_ - .1, 1)
-    place(click(1300 + 250 * k), tw_ + .1, .55)
-    place(pluck(midi([72, 76, 79][k]), 1.5, 1), tw_ + .12, .42, send=.5)
+    place(whoosh(.6, 150, 900, .6, .09), tw_ - .1, 1)
+    place(pluck(midi([60, 64, 67][k]), 1.8, .1), tw_ + .1, .30, send=.6)
 G0 = ev["G0"]
-place(whoosh(.85, 500, 6500, .7, .35), G0 - .1, 1)
-place(whoosh(.55, 1800, 7000, .5, .3), G0 + .25, 1, pan=.2)  # page flip
-place(click(900), G0 + .75, .4)
-place(bell(midi(84), 2.4), G0 + .8, .4, send=.7)
-place(sparkle(.8, 40, 3500, 8000, .15), G0 + .6, 1, send=.7)
-place(whoosh(.5, 500, 3500, .6, .22), T["s4"] + 3.35, 1)
-place(pluck(midi(76), 1.6, 1), T["s4"] + 3.5, .4, send=.6)
+place(whoosh(.85, 200, 1800, .7, .16), G0 - .1, 1)
+place(whoosh(.5, 800, 3000, .5, .10), G0 + .25, 1, pan=.2)  # page flip
+place(bell(midi(72), 2.4), G0 + .8, .22, send=.7)
+place(pluck(midi(67), 1.8, .1), T["s4"] + 3.5, .28, send=.6)
 # Scene 5: wipe, logo write, tagline, handle
 w0 = T["s5"]
-place(whoosh(.8, 150, 4500, .55, .75), w0 - .05, 1, send=.4)
-place(thump(110, 34, 1.8), w0 + .05, 1.0, send=.3)
-place(bell(midi(72), 4), w0 + .75, .4, send=.8)
-place(sparkle(1.15, 70, 3000, 8500, .2), w0 + .85, 1, send=.7)
-place(whoosh(1.1, 800, 8000, .85, .3), w0 + .8, 1, send=.5)
-place(bell(midi(84), 4), w0 + 1.95, .45, send=.8)
-place(bell(midi(79), 4), w0 + 1.97, .3, send=.8)
-place(pluck(midi(76), 1.8, 1), w0 + 2.05, .45, send=.6)
-place(click(1600), w0 + 2.55, .5)
-place(bell(midi(88), 3.5), w0 + 2.6, .35, send=.8)
+place(whoosh(.8, 120, 1600, .55, .30), w0 - .05, 1, send=.4)
+place(thump(100, 34, 1.8), w0 + .05, .55, send=.3)
+place(bell(midi(72), 4), w0 + .75, .22, send=.8)
+place(sparkle(1.15, 12, 1500, 3500, .08), w0 + .85, 1, send=.7)
+place(bell(midi(79), 4), w0 + 1.95, .22, send=.8)
+place(pluck(midi(67), 2.0, .1), w0 + 2.05, .28, send=.6)
 
 # ---------------- reverb ----------------
 def make_ir(seed, dur=2.2):

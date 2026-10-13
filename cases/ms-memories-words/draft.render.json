@@ -1,0 +1,26 @@
+{
+ "comp": "/home/user/onetake/cases/ms-memories-words/comp.html",
+ "fps": 30,
+ "scale": 1,
+ "size": [
+  1080,
+  1920
+ ],
+ "shutter": 180.0,
+ "samples": "adaptive",
+ "gap_px": 24.0,
+ "samples_per_moving_frame": {
+  "4": 436,
+  "5": 4,
+  "6": 1,
+  "9": 1,
+  "12": 2
+ },
+ "workers": 3,
+ "frames": 540,
+ "still_frames": 96,
+ "cut_frames": 77,
+ "captures": 1995,
+ "seconds": 177.4,
+ "final": false
+}

@@ -16,7 +16,7 @@ canvas{position:absolute;left:0;top:0;width:1080px;height:1920px}
 <script src="motion.js"></script>
 <script>
 // ───────────────────────────────────────── look ─────────────────────────────────────────
-const W=1080,H=1920,DUR=18,FPS=30;
+const W=1080,H=1920,DUR=19,FPS=30;
 const BURG='#7B1E3A', INK='#161211', PAPER='#FBF8F3', CARD='#FFFDF9', DARK='#0B0709';
 const {clamp,lerp,sstep,spring,ease}=OM;
 const seg=(t,a,b)=>clamp((t-a)/(b-a),0,1);
@@ -28,7 +28,7 @@ cv.width=W*DPR; cv.height=H*DPR; const ctx=cv.getContext('2d');
 // 0.3 words · 2.85 «حوّل» + the roll · 4.8 the sentence · 6.6 the book enters, tilted · 8.35 the camera dives in · 8.78 HARD CUT to dark
 // 8.9 photos are pulled into the pill · 11.4 three books rise · 13.2 the pill fills the screen · 13.8 the page is burgundy to the end
 // 14.2 the name is written · 16.4 call to action · 17.6 rest
-const T={ cut:8.78, books:11.4, fill:13.2, iris:13.75, name:14.2, cta:16.4 };
+const T={ cut:8.78, books:11.4, fill:13.2, iris:13.75, name:14.1, under:15.4, cta:16.85 };
 
 // ───────────────────────────────────────── helpers ─────────────────────────────────────────
 function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
@@ -43,7 +43,7 @@ function photo(c,x,y,w,h,seed,r=16){            // placeholder photographs — s
   const hill=(col,base,amp,ph)=>{c.fillStyle=col;c.beginPath();c.moveTo(x-4,y+h+4);for(let i=0;i<=16;i++){const u=i/16;c.lineTo(x+w*u,y+h*(base+amp*Math.sin(u*5+ph)));}c.lineTo(x+w+4,y+h+4);c.fill();};
   hill(P[3],0.66,0.07,R.p); hill(P[4],0.82,0.05,R.q); c.restore();
 }
-const logo=new Image(); logo.src='logo.png'; let logoCream=null, PAGESC=null; const SPINES={}, BOOKS={}, PCARDS=[];
+const logo=new Image(); logo.src='logo.png'; let logoCream=null, PAGESC=null, SIG=null; const inkImg=new Image(), tImg=new Image(); inkImg.src='data:image/png;base64,__INK__'; tImg.src='data:image/png;base64,__TMAP__'; const SPINES={}, BOOKS={}, PCARDS=[];
 const PH={}; const PHN=['roma','elisa','senior','s1','s2','s3','s4','s5'];
 const phLoad=PHN.map(n=>{const im=new Image(); im.src='photos/'+n+'.jpg'; PH[n]=im; return im.decode().catch(()=>{});});
 function drawFit(c,im,x,y,w,h,r){ c.save(); c.beginPath(); c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath(); c.clip();
@@ -137,6 +137,15 @@ function makePolaroid(name,tape){ const w=220,h=262,k=2,c=document.createElement
   drawFit(g,PH[name],12,12,196,196,3); g.strokeStyle='rgba(0,0,0,0.10)'; g.lineWidth=1; g.strokeRect(12.5,12.5,195,195);
   if(tape){ g.save(); g.translate(w/2,4); g.rotate(-0.06); g.fillStyle='rgba(123,30,58,0.55)'; g.fillRect(-34,-13,68,26); g.fillStyle='rgba(255,255,255,0.18)'; g.fillRect(-34,-13,68,6); g.restore(); }
   return c; }
+// the signature is written by a pen: every ink pixel has the time the pen reaches it (logo_t2.png, 16-bit in R,G)
+function makeSignature(){ const w=inkImg.naturalWidth,h=inkImg.naturalHeight; const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d',{willReadFrequently:true});
+  g.drawImage(inkImg,0,0); const base=g.getImageData(0,0,w,h); const tc=document.createElement('canvas'); tc.width=w; tc.height=h; const tg=tc.getContext('2d',{willReadFrequently:true}); tg.drawImage(tImg,0,0); const td=tg.getImageData(0,0,w,h).data;
+  const n=w*h, T=new Float32Array(n), A=new Uint8Array(n); for(let i=0;i<n;i++){ T[i]=(td[i*4]*256+td[i*4+1])/65534; A[i]=base.data[i*4+3]; }
+  const out=g.createImageData(w,h); const o=out.data; for(let i=0;i<n;i++){ o[i*4]=251; o[i*4+1]=248; o[i*4+2]=243; }
+  return {c,g,w,h,T,A,out}; }
+function drawSignature(tcur){ const S=SIG; if(tcur<=0) return; const o=S.out.data, n=S.w*S.h, soft=0.012;
+  for(let i=0;i<n;i++){ const a=S.A[i]; if(!a){ o[i*4+3]=0; continue; } const k=(tcur-S.T[i])/soft; o[i*4+3]=k>=1?a:k<=0?0:a*k; }
+  S.g.putImageData(S.out,0,0); ctx.drawImage(S.c,LX,LY,LOGO_W,LOGO_H); }
 function groundShadow(cx,cy,w,a){ ctx.save(); ctx.globalAlpha=a; const g=ctx.createRadialGradient(cx,cy,0,cx,cy,w); g.addColorStop(0,'rgba(60,20,35,0.28)'); g.addColorStop(1,'rgba(60,20,35,0)'); ctx.translate(0,0); ctx.scale(1,0.18); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy/0.18,w,0,6.2832); ctx.fill(); ctx.restore(); }
 
 // ───────────────────────────────────────── underline of the logo (traced from the artwork) ─────────────────────────────────────────
@@ -200,21 +209,22 @@ function seek(t){
   }
   if(t>=T.fill&&!dark){ ctx.fillStyle=BURG; ctx.fillRect(0,0,W,H); }
   // ── 6 · the page is burgundy; the name is written in cream ──
-  if(t>=T.name&&logo.complete){ const u=ease.sineInOut(seg(t,T.name,T.name+0.95)), cx=LX+LOGO_W*u+1;
-    ctx.save(); ctx.beginPath(); ctx.rect(LX,0,cx-LX,H); ctx.clip(); ctx.drawImage(logoCream||logo,LX,LY,LOGO_W,LOGO_H);
-    ctx.strokeStyle='#E7B7C2'; ctx.lineWidth=11; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.beginPath(); ctx.moveTo(UL[0][0],UL[0][1]); for(const p of UL) ctx.lineTo(p[0],p[1]); ctx.stroke(); ctx.restore(); }
-  words(t,['كل','ذكرى','تستحق','أن','تبقى'],90,540,1070,15.0,99,[PAPER,PAPER,PAPER,PAPER,'#E7B7C2'],0.10);
+  if(t>=T.name&&SIG){ const e=ease.sineInOut(seg(t,T.name,T.under-0.05)); drawSignature(e*1.0);
+    const u=ease.sineInOut(seg(t,T.under,T.under+0.5)); if(u>0.001){ ctx.save(); ctx.strokeStyle='#E7B7C2'; ctx.lineWidth=11; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.beginPath(); ctx.moveTo(UL[0][0],UL[0][1]);
+      const L=[0]; for(let i=1;i<UL.length;i++) L.push(L[i-1]+Math.hypot(UL[i][0]-UL[i-1][0],UL[i][1]-UL[i-1][1])); const tot=L[L.length-1]*u;
+      for(let i=1;i<UL.length;i++){ if(L[i]<=tot) ctx.lineTo(UL[i][0],UL[i][1]); else { const f=(tot-L[i-1])/(L[i]-L[i-1]); if(f>0) ctx.lineTo(UL[i-1][0]+(UL[i][0]-UL[i-1][0])*f,UL[i-1][1]+(UL[i][1]-UL[i-1][1])*f); break; } } ctx.stroke(); ctx.restore(); } }
+  words(t,['كل','ذكرى','تستحق','أن','تبقى'],90,540,1070,15.95,99,[PAPER,PAPER,PAPER,PAPER,'#E7B7C2'],0.10);
   // ── 7 · call to action; the handle is typed ──
   if(t>=T.cta){ const p=spring(t-T.cta,0.65,18); ctx.save(); ctx.globalAlpha=clamp(p*1.6,0,1); ctx.translate(540,1250); const s=0.86+0.14*p; ctx.scale(s,s); ctx.fillStyle=PAPER; rr(-230,-52,460,104,52); ctx.fill();
     ctx.font='500 46px Tajawal'; ctx.direction='rtl'; ctx.textAlign='center'; ctx.fillStyle=BURG; ctx.fillText('اطلب كتابك',0,16); ctx.restore();
-    const H0='@msmemo.om', n=Math.floor(clamp((t-16.95)/0.62,0,1)*H0.length); const caret=(t>=16.9&&t<17.75&&Math.floor(t*3)%2===0)||n<H0.length&&t>=16.95;
+    const H0='@msmemo.om', n=Math.floor(clamp((t-17.3)/0.62,0,1)*H0.length); const caret=(t>=17.25&&t<18.2&&Math.floor(t*3)%2===0)||n<H0.length&&t>=17.3;
     ctx.save(); ctx.font='500 40px Tajawal'; ctx.direction='ltr'; ctx.letterSpacing='5px'; ctx.textAlign='left'; ctx.fillStyle=PAPER; const full=ctx.measureText(H0).width; const txt=H0.slice(0,n);
-    ctx.globalAlpha=sstep(16.9,16.97,t); ctx.fillText(txt+(caret&&n<H0.length+1?'|':''),540-full/2,1400); ctx.restore(); }
+    ctx.globalAlpha=sstep(17.25,17.32,t); ctx.fillText(txt+(caret&&n<H0.length+1?'|':''),540-full/2,1400); ctx.restore(); }
   document.getElementById('hud').textContent='t='+t.toFixed(3);
   return true;
 }
 window.__seek=async t=>seek(t);
-window.__ready=(async()=>{ await document.fonts.load('500 60px Tajawal'); await document.fonts.ready; try{await logo.decode();}catch(e){} await Promise.all(phLoad); COVERS.main=makeCover('main'); PAGESC=makePages(66,740); { const c=document.createElement('canvas'); c.width=logo.naturalWidth; c.height=logo.naturalHeight; const g=c.getContext('2d'); g.drawImage(logo,0,0); g.globalCompositeOperation='source-in'; g.fillStyle=PAPER; g.fillRect(0,0,c.width,c.height); logoCream=c; SPINES.main=makeSpine(66,740,BURG,PAPER,'',0,logoCream); const H0=470, defs=[['roma',736,1104,'#710100','#F6E8D0','ROMA · ITALY · 2026'],['elisa',852,1200,'#E8E8E8','#A80C0C','ELISA · 19'],['senior',675,1200,'#818181','#111111','SENIOR  2026']];
+window.__ready=(async()=>{ await document.fonts.load('500 60px Tajawal'); await document.fonts.ready; try{await logo.decode();}catch(e){} await Promise.all(phLoad); await inkImg.decode(); await tImg.decode(); SIG=makeSignature(); COVERS.main=makeCover('main'); PAGESC=makePages(66,740); { const c=document.createElement('canvas'); c.width=logo.naturalWidth; c.height=logo.naturalHeight; const g=c.getContext('2d'); g.drawImage(logo,0,0); g.globalCompositeOperation='source-in'; g.fillStyle=PAPER; g.fillRect(0,0,c.width,c.height); logoCream=c; SPINES.main=makeSpine(66,740,BURG,PAPER,'',0,logoCream); const H0=470, defs=[['roma',736,1104,'#710100','#F6E8D0','ROMA · ITALY · 2026'],['elisa',852,1200,'#E8E8E8','#A80C0C','ELISA · 19'],['senior',675,1200,'#818181','#111111','SENIOR  2026']];
     for(const [n,iw,ih,bg,fg,tx] of defs){ const w=Math.round(H0*iw/ih), d=46; BOOKS[n]={w,h:H0,d,cover:imgBook(n,w,H0),spine:makeSpine(d,H0,bg,fg,tx,24)}; if(n==='roma') BOOKS[n].pages=0; } PAGESC=makePages(66,740); BOOKS.pagesSmall=makePages(46,H0); PCARDS.push(...['s1','s2','s3','s4','s5'].map((n,i)=>makePolaroid(n,i%2===0))); } return seek(0); })();
 window.__track=t=>{ const o={}; if(t>=6.55&&t<T.cut){ const b=BOOKP(t); o.book={x:b.x-260*b.zoom,y:b.y-370*b.zoom,w:520*b.zoom,h:740*b.zoom,op:1}; }
   if(t>=T.cut&&t<T.fill) o.pill={x:PILL.x-PILL.w/2,y:PILL.y-PILL.h/2,w:PILL.w,h:PILL.h,op:1}; return o; };

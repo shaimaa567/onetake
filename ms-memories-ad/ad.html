@@ -281,49 +281,19 @@ const WORDS4 = [
   { s: 'حكايتك', y: 1150, t: T.s4 + 1.6, n: '٠٣' },
 ];
 const G0 = T.s4 + 2.4, G1 = T.s4 + 3.1; // تجمّع الكلمات
-function bookTargets() { return [[CX - 200, 876], [CX + 230, 790], [CX + 200, 1024]]; }
+function bookTargets() { return [[CX, 860], [CX, 860], [CX, 860]]; }
+const bookImg = new Image();
 function drawBook(c, t) {
-  const op = E.outCubic(prog(t, G0 - .1, G0 + .8));          // ظهور الغلاف
-  const flip = E.inOut(prog(t, G0 + .15, G0 + .95));           // انقلاب الصفحة اليسرى
-  const cont = E.outCubic(prog(t, G0 + .55, G0 + 1.1));
-  const Cy = 900, pw = 340, ph = 470;
-  const sc = lerp(.86, 1, op) * 1.18;
-  xf(c, CX, Cy, { alpha: op, scale: sc }, g => {
-    // الغلاف
+  // صورة الكتاب المفتوح كما هي
+  const op = E.outCubic(prog(t, G0 + .1, G0 + 1.0));
+  if (op <= 0.003) return;
+  const bw = 860, bh = bw * bookImg.height / bookImg.width, Cy = 860;
+  const zoom = 1 + .035 * prog(t, G0 + 1, T.s5);
+  xf(c, CX, Cy, { alpha: op, scale: lerp(1.07, 1, op) * zoom }, g => {
     g.shadowColor = 'rgba(40,10,15,.35)'; g.shadowBlur = 50; g.shadowOffsetY = 26;
-    g.fillStyle = COL.burg; rr(g, -pw - 22, -ph / 2 - 20, (pw + 22) * 2, ph + 40, 16); g.fill();
-    g.shadowColor = 'transparent';
-    // حواف الصفحات
-    g.fillStyle = '#E9DDC8';
-    rr(g, -pw - 8, -ph / 2 - 8, (pw + 8) * 2, ph + 16, 8); g.fill();
-    // صفحة يمنى
-    g.fillStyle = COL.paper; rr(g, 0, -ph / 2, pw, ph, 6); g.fill();
-    // صفحة يسرى (تنقلب من المنتصف)
-    if (flip > 0.002) {
-      g.save(); g.scale(flip, 1);
-      g.fillStyle = COL.paper; rr(g, -pw, -ph / 2, pw, ph, 6); g.fill(); g.restore();
-    }
-    // انقلاب الصفحة (ظل خلفي أثناء الحركة)
-    if (flip > 0 && flip < 1) {
-      g.fillStyle = `rgba(60,20,20,${.18 * Math.sin(Math.PI * flip)})`;
-      g.fillRect(-pw * flip, -ph / 2, pw * flip, ph);
-    }
-    // العمود
-    const sg = g.createLinearGradient(-40, 0, 40, 0);
-    sg.addColorStop(0, 'rgba(60,20,20,0)'); sg.addColorStop(.5, 'rgba(60,20,20,.28)'); sg.addColorStop(1, 'rgba(60,20,20,0)');
-    g.fillStyle = sg; g.fillRect(-40, -ph / 2, 80, ph);
-    // خيط أحمر (علامة قراءة)
-    g.strokeStyle = COL.red; g.lineWidth = 5; g.beginPath(); g.moveTo(130, ph / 2); g.lineTo(130, ph / 2 + 70 * op); g.stroke();
-    // محتوى
-    g.globalAlpha *= cont;
-    // يسار: صورة
-    drawPhoto(g, -pw / 2, -20, 250, 300);
-    g.fillStyle = '#CFC2AB'; rr(g, -pw / 2 - 100, 170, 200, 8, 4); g.fill(); rr(g, -pw / 2 - 100, 195, 130, 8, 4); g.fill();
-    // يمين: تفاصيل (سطور) + فيديو
-    g.fillStyle = COL.red; rr(g, pw / 2 - 20, -ph / 2 + 50, 100, 12, 6); g.fill();
-    g.fillStyle = '#CFC2AB';
-    [0, 1, 2, 3].forEach(i => rr(g, pw / 2 + 105 - (i === 3 ? 170 : 210), -ph / 2 + 90 + i * 28, i === 3 ? 170 : 210, 8, 4) && g.fill());
-    drawPlay(g, pw / 2 + 0, 105);
+    g.fillStyle = '#fff'; rr(g, -bw / 2, -bh / 2, bw, bh, 10); g.fill(); g.shadowColor = 'transparent';
+    g.save(); rr(g, -bw / 2, -bh / 2, bw, bh, 10); g.clip();
+    g.drawImage(bookImg, -bw / 2, -bh / 2, bw, bh); g.restore();
   });
 }
 function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); return true; }
@@ -378,7 +348,7 @@ function scene4(c, t) {
   drawBook(c, t);
   // «كلها… في مكان واحد»
   const k2 = prog(t, T.s4 + 3.45, T.s4 + 4.1), e2 = E.outQuart(k2);
-  xf(c, CX, 1450 + (1 - e2) * 40, { alpha: e2, blur: (1 - e2) * 10 }, g => {
+  xf(c, CX, 1500 + (1 - e2) * 40, { alpha: e2, blur: (1 - e2) * 10 }, g => {
     txt(g, 'كلها… في مكان واحد', 0, 0, 74, COL.ink, 500);
   });
   c.restore();
@@ -469,6 +439,7 @@ window.WORDS4 = WORDS4;
 window.ready = (async () => {
   await Promise.all([document.fonts.load('300 100px Tajawal', 'ذكريات'), document.fonts.load('500 100px Tajawal', 'ذكريات')]);
   await new Promise((res, rej) => { logoImg.onload = res; logoImg.onerror = rej; logoImg.src = 'assets/logo.png'; });
+  await new Promise((res, rej) => { bookImg.onload = res; bookImg.onerror = rej; bookImg.src = 'assets/book.webp'; });
   prepLogo(); buildParticles(); return true;
 })();
 </script>

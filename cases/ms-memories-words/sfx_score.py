@@ -22,7 +22,7 @@ for t in (11.4, 11.7, 12.0): place(air(0.5, 300, 2400, 1.2, 0.5), t - 0.05, 0.18
 place(sub(55, 0.8), 11.95, 0.2, 0.0, 0.3)
 place(air(0.6, 250, 3000, 1.3, 0.7), 13.15, 0.30, 0.0, 0.45); place(sub(45, 1.0), 13.78, 0.30, 0.0, 0.35)  # the fill, the iris
 place(air(1.0, 3000, 5200, 2.0, 0.5), 14.2, 0.10, -0.4, 0.25, pan_to=0.4)                                   # the name is written
-place(glass(659, 1.4, 0.5), 15.0, 0.10, 0.0, 0.6); place(glass(988, 1.8, 0.4), 15.42, 0.12, 0.0, 0.6)
+place(glass(988, 1.8, 0.4), 15.02, 0.12, 0.0, 0.6); place(glass(1318, 2.0, 0.3), 15.5, 0.08, 0.0, 0.6)   # «كل ذكرى تستحق أن تبقى»
 place(wood(220, 0.08), 16.47, 0.22, 0.0, 0.2); place(bubble(520, 0.2), 16.5, 0.12, 0.0, 0.3)               # the button
 for i in range(10): place(wood(260 + rng.uniform(-20, 20), 0.04), 16.97 + i * 0.062, 0.06, 0.0, 0.15)      # the handle, typed
 s.write(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sfx.wav"))

@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Ms. Memories Ad</title>
+<style>
+@font-face{font-family:'Tajawal';font-weight:300;src:url('assets/Tajawal-Light.ttf');}
+@font-face{font-family:'Tajawal';font-weight:500;src:url('assets/Tajawal-Medium.ttf');}
+html,body{margin:0;background:#222}
+canvas{display:block}
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script>
+/* ============ CONFIG ============ */
+const W = 1080, H = 1920, CX = 540;
+const HANDLE = '@ms.memories';            // غيّر حساب الإنستغرام هنا
+const COL = {
+  cream: '#F4EBDD', sand: '#EBDCC4', ink: '#2B0F15',
+  burg: '#4A0E1B', burgHi: '#6E1A2D', red: '#B3202E', redHi: '#DB4553', paper: '#FBF6EC'
+};
+// المشاهد (ثوانٍ) — مصدر واحد للصوت والصورة
+const T = { s2: 3.3, s3: 6.9, s4: 10.3, s5: 14.7, end: 18 };
+
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+/* ============ HELPERS ============ */
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const E = {
+  outCubic: x => 1 - Math.pow(1 - x, 3),
+  outQuart: x => 1 - Math.pow(1 - x, 4),
+  outExpo: x => x >= 1 ? 1 : 1 - Math.pow(2, -10 * x),
+  inCubic: x => x * x * x,
+  inOut: x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2,
+  outBack: x => { const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); },
+  outBounce: x => {
+    const n = 7.5625, d = 2.75;
+    if (x < 1 / d) return n * x * x;
+    if (x < 2 / d) return n * (x -= 1.5 / d) * x + .75;
+    if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + .9375;
+    return n * (x -= 2.625 / d) * x + .984375;
+  }
+};
+function mixHex(a, b, k) {
+  const pa = [1, 3, 5].map(i => parseInt(a.substr(i, 2), 16));
+  const pb = [1, 3, 5].map(i => parseInt(b.substr(i, 2), 16));
+  return 'rgb(' + pa.map((v, i) => Math.round(lerp(v, pb[i], k))).join(',') + ')';
+}
+function rnd(seed) { // mulberry32
+  return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+const font = (w, s) => `${w} ${s}px Tajawal`;
+
+// يرسم داخل تحويل (مركز، تكبير، دوران، شفافية، ضبابية، قصّ)
+function xf(c, x, y, o, fn) {
+  const { scale = 1, rot = 0, alpha = 1, blur = 0, clip = null, sx = 1 } = o || {};
+  if (alpha <= 0.003) return;
+  c.save();
+  c.translate(x, y); c.rotate(rot); c.scale(scale * sx, scale);
+  c.globalAlpha *= alpha;
+  if (blur > 0.3) c.filter = `blur(${blur}px)`;
+  if (clip) { c.beginPath(); c.rect(clip[0], clip[1], clip[2], clip[3]); c.clip(); }
+  fn(c);
+  c.restore();
+}
+function txt(c, s, x, y, size, color, weight = 500) {
+  c.font = font(weight, size); c.direction = 'rtl'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = color; c.fillText(s, x, y);
+}
+function tw(c, s, size, weight = 500) { c.font = font(weight, size); c.direction = 'rtl'; return c.measureText(s).width; }
+
+// كلمة + نقاط الحذف (…) بلون مختلف، مجموعة واحدة متمركزة
+function wordDots(c, word, size, cw, cd, weight = 500) {
+  const ww = tw(c, word, size, weight), dw = tw(c, '…', size, weight), gap = size * .06, tot = ww + gap + dw;
+  txt(c, word, tot / 2 - ww / 2, 0, size, cw, weight);
+  txt(c, '…', -tot / 2 + dw / 2, 0, size, cd, weight);
+  return tot;
+}
+
+/* ============ ASSETS ============ */
+const grain = document.createElement('canvas'); grain.width = grain.height = 256;
+(function () {
+  const g = grain.getContext('2d'), id = g.createImageData(256, 256), r = rnd(7);
+  for (let i = 0; i < id.data.length; i += 4) { const v = r() * 255; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = 255; }
+  g.putImageData(id, 0, 0);
+})();
+let grainPat = null;
+
+const logoImg = new Image();
+let logoTint = null, logoBox = null;
+function prepLogo() {
+  const tmp = document.createElement('canvas'); tmp.width = logoImg.width; tmp.height = logoImg.height;
+  const g = tmp.getContext('2d'); g.drawImage(logoImg, 0, 0);
+  const d = g.getImageData(0, 0, tmp.width, tmp.height).data;
+  let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+  for (let y = 0; y < tmp.height; y++) for (let x = 0; x < tmp.width; x++) if (d[(y * tmp.width + x) * 4 + 3] > 20) {
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  const pad = 8; logoBox = { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
+  logoTint = document.createElement('canvas'); logoTint.width = logoBox.w; logoTint.height = logoBox.h;
+  const t = logoTint.getContext('2d'); t.drawImage(logoImg, -logoBox.x, -logoBox.y);
+  t.globalCompositeOperation = 'source-in'; t.fillStyle = COL.cream; t.fillRect(0, 0, logoBox.w, logoBox.h);
+}
+
+/* ============ BACKGROUND ============ */
+function bg(c, base, hi, vig = .16) {
+  c.fillStyle = base; c.fillRect(0, 0, W, H);
+  const g = c.createRadialGradient(CX, 860, 80, CX, 960, 1300);
+  g.addColorStop(0, hi); g.addColorStop(1, base);
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+}
+function finish(c, dark) {
+  // grain + vignette
+  if (!grainPat) grainPat = c.createPattern(grain, 'repeat');
+  c.save(); c.globalAlpha = dark ? .07 : .055; c.globalCompositeOperation = dark ? 'screen' : 'multiply';
+  c.fillStyle = grainPat; c.fillRect(0, 0, W, H); c.restore();
+  const v = c.createRadialGradient(CX, 960, 700, CX, 960, 1250);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, dark ? 'rgba(10,0,4,.45)' : 'rgba(70,30,20,.16)');
+  c.fillStyle = v; c.fillRect(0, 0, W, H);
+}
+function frame(c, color, alpha, t) {
+  // إطار رفيع بزوايا — يرسم نفسه في البداية
+  const k = E.outCubic(prog(t, 0, 1.2)), m = 54, L = 40 * 1, w = W - 2 * m, h = H - 2 * m;
+  c.save(); c.globalAlpha = alpha; c.strokeStyle = color; c.lineWidth = 1.5;
+  c.beginPath(); c.rect(m, m, w, h); c.stroke();
+  c.lineWidth = 4;
+  [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]].forEach(([x, y, a, b]) => {
+    c.beginPath(); c.moveTo(x, y + b * L * k); c.lineTo(x, y); c.lineTo(x + a * L * k, y); c.stroke(); });
+  c.restore();
+}
+
+/* ============ SCENE 1 — ذكريات … لحظات … حكايات ============ */
+function scene1(c, t) {
+  const Y = 930, S = 250;
+  // ① ذكريات — ترتفع مع ضبابية
+  {
+    const i = E.outQuart(prog(t, .15, 1.0)), o = E.inCubic(prog(t, 1.05, 1.3));
+    xf(c, CX, Y + lerp(90, 0, i) - o * 60, { alpha: i * (1 - o), blur: (1 - i) * 18 + o * 10, scale: lerp(1.08, 1, i) }, g => wordDots(g, 'ذكريات', S, COL.ink, COL.red));
+  }
+  // ② لحظات — تنكشف من اليمين لليسار
+  {
+    const i = E.outExpo(prog(t, 1.2, 2.05)), o = E.inCubic(prog(t, 2.1, 2.35));
+    const wd = 1000;
+    xf(c, CX, Y, { alpha: (1 - o), scale: lerp(1.06, 1, i) * (1 + o * .12), blur: o * 12, clip: [wd / 2 - wd * i, -300, wd * i, 600] },
+      g => wordDots(g, 'لحظات', S, COL.ink, COL.red));
+    // خط أحمر يمسح الكشف
+    xf(c, CX, Y, { alpha: (1 - o) * (1 - prog(t, 1.9, 2.05)) * (i > .01 ? 1 : 0) }, g => {
+      g.fillStyle = COL.red; g.fillRect(wd / 2 - wd * i - 2, -170, 4, 340); });
+  }
+  // ③ حكايات — تسقط وترتد
+  {
+    const i = prog(t, 2.25, 3.0), o = E.inCubic(prog(t, 3.1, 3.3));
+    const b = E.outBounce(i);
+    xf(c, CX, Y - (1 - b) * 520, { alpha: clamp(i * 6) * (1 - o), blur: o * 14 + (1 - E.outCubic(prog(t, 2.25, 2.6))) * 8, rot: (1 - b) * -.05 },
+      g => wordDots(g, 'حكايات', S, COL.ink, COL.red));
+    // ظل ارتطام
+    xf(c, CX, Y + 150, { alpha: .18 * b * (1 - o) }, g => { g.fillStyle = COL.ink; g.beginPath(); g.ellipse(0, 0, 330 * b, 12, 0, 0, 7); g.fill(); });
+  }
+  // لمسة: نقطة حمراء تتنفس في الأسفل
+  const dots = [[.15, 1.3], [1.2, 2.3], [2.25, 3.3]];
+  dots.forEach(([a, b], k) => {
+    const on = prog(t, a + .1, a + .4) * (1 - prog(t, b - .1, b));
+    c.save(); c.globalAlpha = on; c.fillStyle = COL.red;
+    c.beginPath(); c.arc(CX + (k - 1) * 40, 1340, 6, 0, 7); c.fill(); c.restore();
+  });
+}
+
+/* ============ SCENE 2 — كل ذكرى تبدأ بـ … (عجلة الكلمات) ============ */
+const WHEEL = ['صورة', 'رحلة', 'ضحكة', 'إنجاز', 'لحظة'];
+const SP0 = T.s2 + .8, SP1 = T.s2 + 2.8, STEPS = 14;
+const wheelPos = t => { const p = prog(t, SP0, SP1); return STEPS * (1 - Math.pow(1 - p, 3.4)); };
+function scene2(c, t) {
+  const tl = t - T.s2;
+  const out = E.inCubic(prog(t, T.s3 - .3, T.s3));
+  const a = E.outCubic(prog(tl, .1, .7));
+  // العبارة
+  xf(c, CX, 690 + (1 - a) * 40, { alpha: a * (1 - out), blur: (1 - a) * 10 }, g => txt(g, 'كل ذكرى تبدأ بـ', 0, 0, 132, COL.ink, 300));
+  // نافذة العجلة
+  const Yw = 1010, hw = 150, ww = 860;
+  const win = E.outExpo(prog(tl, .35, 1.0));
+  c.save(); c.globalAlpha = (1 - out);
+  c.strokeStyle = COL.red; c.lineWidth = 3;
+  [-1, 1].forEach(s => { c.beginPath(); c.moveTo(CX - ww / 2 * win, Yw + s * hw); c.lineTo(CX + ww / 2 * win, Yw + s * hw); c.stroke(); });
+  // علامات جانبية
+  c.fillStyle = COL.red;
+  [-1, 1].forEach(s => { c.beginPath(); c.moveTo(CX + s * (ww / 2 + 28), Yw - 18); c.lineTo(CX + s * (ww / 2 + 28) - s * 22, Yw); c.lineTo(CX + s * (ww / 2 + 28), Yw + 18); c.closePath(); c.globalAlpha = (1 - out) * win; c.fill(); });
+  c.restore();
+  // الكلمات
+  const pos = wheelPos(t), p2 = wheelPos(t + 1 / 60), speed = Math.abs(p2 - pos) * 60; // خطوات/ث
+  const pulse = prog(t, SP1, SP1 + .5);
+  c.save(); c.beginPath(); c.rect(CX - ww / 2, Yw - hw, ww, hw * 2); c.clip();
+  for (let k = -2; k <= STEPS + 3; k++) {
+    const d = k - pos; if (Math.abs(d) > 1.6) continue;
+    const idx = ((k % 5) + 5) % 5, ad = Math.abs(d);
+    const al = clamp(1.15 - ad * .85) * win * (1 - out);
+    const sc = (idx === 4 && k === STEPS) ? 1 + .07 * Math.sin(Math.PI * clamp(pulse * 1.6)) : 1;
+    xf(c, CX, Yw + d * 255, { alpha: al, blur: clamp(speed * .55, 0, 11) * Math.min(1, ad + .6), scale: sc * lerp(1, .88, clamp(ad)) },
+      g => txt(g, WHEEL[idx], 0, 0, 215, COL.red, 500));
+  }
+  c.restore();
+  // حلقة عند التوقف
+  if (t > SP1) {
+    const r = E.outCubic(pulse);
+    c.save(); c.globalAlpha = (1 - pulse) * .5 * (1 - out); c.strokeStyle = COL.red; c.lineWidth = 3;
+    c.beginPath(); c.rect(CX - ww / 2 - r * 50, Yw - hw - r * 30, ww + r * 100, hw * 2 + r * 60); c.stroke(); c.restore();
+  }
+}
+
+/* ============ SCENE 3 — التحوّل ============ */
+// يُرسم النص A / B على أي لوحة (للعرض وللأخذ بالعينات)
+function drawA(c, alpha = 1, k = 1) { // k: تقدم الكشف
+  const i1 = E.outCubic(clamp(k * 2.2)), i2 = E.outExpo(clamp(k * 2.2 - .8));
+  xf(c, CX, 640 + (1 - i1) * 40, { alpha: alpha * i1, blur: (1 - i1) * 8 }, g => wordDots(g, 'لكن', 160, COL.red, COL.red, 500));
+  const wd = 1000;
+  [['ماذا لو أصبحت', 880], ['أكثر من صورة؟', 1060]].forEach(([s, y], n) => {
+    const q = E.outExpo(clamp(k * 2.4 - .5 - n * .35));
+    xf(c, CX, y, { alpha: alpha, clip: [wd / 2 - wd * q, -200, wd * q, 400] }, g => txt(g, s, 0, 0, 148, COL.ink, 500));
+  });
+}
+function drawB(c, alpha = 1, pop = 0) {
+  xf(c, CX, 820, { alpha }, g => txt(g, 'ماذا لو أصبحت', 0, 0, 148, COL.ink, 300));
+  xf(c, CX, 1100, { alpha, scale: 1 + .05 * Math.sin(Math.PI * pop) * (1 - pop) }, g => txt(g, 'كتابًا؟', 0, 0, 330, COL.red, 500));
+}
+let P = null; // نقاط التفكيك
+function buildParticles() {
+  const sample = fn => {
+    const o = document.createElement('canvas'); o.width = W; o.height = H; const g = o.getContext('2d');
+    fn(g); const d = g.getImageData(0, 0, W, H).data, pts = [], step = 4;
+    for (let y = 0; y < H; y += step) for (let x = 0; x < W; x += step) { const i = (y * W + x) * 4;
+      if (d[i + 3] > 140) pts.push([x, y, d[i], d[i + 1], d[i + 2]]); }
+    return pts;
+  };
+  const A = sample(g => drawA(g, 1, 1)), B = sample(g => drawB(g, 1, 0));
+  A.sort((p, q) => p[0] - q[0] || p[1] - q[1]); B.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+  const N = Math.max(A.length, B.length), r = rnd(11);
+  P = [];
+  for (let i = 0; i < N; i++) {
+    const a = A[Math.floor(i * A.length / N)], b = B[Math.floor(i * B.length / N)];
+    P.push({ ax: a[0], ay: a[1], bx: b[0], by: b[1], ca: [a[2], a[3], a[4]], cb: [b[2], b[3], b[4]],
+      ang: r() * Math.PI * 2, rad: 60 + r() * 330, dl: r() * .25, sz: 2.6 + r() * 1.8 });
+  }
+}
+const M0 = T.s3 + 1.65, M1 = T.s3 + 3.0; // نافذة التفكيك
+function scene3(c, t) {
+  const tl = t - T.s3;
+  const kA = prog(tl, .12, 1.15);
+  const morph = prog(t, M0, M1);
+  const out = E.inCubic(prog(t, T.s4 - .25, T.s4));
+  c.save(); c.globalAlpha = 1 - out;
+  if (t < M0) {
+    drawA(c, 1, kA);
+  } else if (t < M1 + .25) {
+    // لحظة التحويل: يتلاشى النص الصلب إلى جسيمات
+    const fadeA = 1 - clamp(prog(t, M0, M0 + .22));
+    if (fadeA > 0) drawA(c, fadeA, 1);
+    const fadeB = clamp(prog(t, M1 - .05, M1 + .22));
+    if (fadeB > 0) drawB(c, fadeB, 0);
+    const dotA = clamp(prog(t, M0, M0 + .22)) * (1 - fadeB);
+    for (const p of P) {
+      const u = clamp((morph - p.dl) / (1 - .25));
+      const e = E.inOut(u), sw = Math.sin(Math.PI * u);
+      const ang = p.ang + e * 2.2;
+      const x = lerp(p.ax, p.bx, e) + Math.cos(ang) * p.rad * sw;
+      const y = lerp(p.ay, p.by, e) + Math.sin(ang) * p.rad * sw * .75;
+      const col = [0, 1, 2].map(k => Math.round(lerp(p.ca[k], p.cb[k], e)));
+      c.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`; c.globalAlpha = (1 - out) * dotA;
+      c.fillRect(x - p.sz / 2, y - p.sz / 2, p.sz, p.sz);
+    }
+  } else {
+    drawB(c, 1, prog(t, M1 + .25, M1 + .75));
+  }
+  c.restore();
+}
+
+/* ============ SCENE 4 — صورك / تفاصيلك / حكايتك → كتاب ============ */
+const WORDS4 = [
+  { s: 'صورك', y: 640, t: T.s4 + .1, n: '٠١' },
+  { s: 'تفاصيلك', y: 940, t: T.s4 + .85, n: '٠٢' },
+  { s: 'حكايتك', y: 1240, t: T.s4 + 1.6, n: '٠٣' },
+];
+const G0 = T.s4 + 2.4, G1 = T.s4 + 3.1; // تجمّع الكلمات
+function bookTargets() { return [[CX - 200, 876], [CX + 230, 790], [CX + 200, 1024]]; }
+function drawBook(c, t) {
+  const op = E.outCubic(prog(t, G0 - .1, G0 + .8));          // ظهور الغلاف
+  const flip = E.inOut(prog(t, G0 + .15, G0 + .95));           // انقلاب الصفحة اليسرى
+  const cont = E.outCubic(prog(t, G0 + .55, G0 + 1.1));
+  const Cy = 900, pw = 340, ph = 470;
+  const sc = lerp(.86, 1, op) * 1.18;
+  xf(c, CX, Cy, { alpha: op, scale: sc }, g => {
+    // الغلاف
+    g.shadowColor = 'rgba(40,10,15,.35)'; g.shadowBlur = 50; g.shadowOffsetY = 26;
+    g.fillStyle = COL.burg; rr(g, -pw - 22, -ph / 2 - 20, (pw + 22) * 2, ph + 40, 16); g.fill();
+    g.shadowColor = 'transparent';
+    // حواف الصفحات
+    g.fillStyle = '#E9DDC8';
+    rr(g, -pw - 8, -ph / 2 - 8, (pw + 8) * 2, ph + 16, 8); g.fill();
+    // صفحة يمنى
+    g.fillStyle = COL.paper; rr(g, 0, -ph / 2, pw, ph, 6); g.fill();
+    // صفحة يسرى (تنقلب من المنتصف)
+    if (flip > 0.002) {
+      g.save(); g.scale(flip, 1);
+      g.fillStyle = COL.paper; rr(g, -pw, -ph / 2, pw, ph, 6); g.fill(); g.restore();
+    }
+    // انقلاب الصفحة (ظل خلفي أثناء الحركة)
+    if (flip > 0 && flip < 1) {
+      g.fillStyle = `rgba(60,20,20,${.18 * Math.sin(Math.PI * flip)})`;
+      g.fillRect(-pw * flip, -ph / 2, pw * flip, ph);
+    }
+    // العمود
+    const sg = g.createLinearGradient(-40, 0, 40, 0);
+    sg.addColorStop(0, 'rgba(60,20,20,0)'); sg.addColorStop(.5, 'rgba(60,20,20,.28)'); sg.addColorStop(1, 'rgba(60,20,20,0)');
+    g.fillStyle = sg; g.fillRect(-40, -ph / 2, 80, ph);
+    // خيط أحمر (علامة قراءة)
+    g.strokeStyle = COL.red; g.lineWidth = 5; g.beginPath(); g.moveTo(130, ph / 2); g.lineTo(130, ph / 2 + 70 * op); g.stroke();
+    // محتوى
+    g.globalAlpha *= cont;
+    // يسار: صورة
+    drawPhoto(g, -pw / 2, -20, 250, 300);
+    g.fillStyle = '#CFC2AB'; rr(g, -pw / 2 - 100, 170, 200, 8, 4); g.fill(); rr(g, -pw / 2 - 100, 195, 130, 8, 4); g.fill();
+    // يمين: تفاصيل (سطور) + فيديو
+    g.fillStyle = COL.red; rr(g, pw / 2 - 20, -ph / 2 + 50, 100, 12, 6); g.fill();
+    g.fillStyle = '#CFC2AB';
+    [0, 1, 2, 3].forEach(i => rr(g, pw / 2 + 105 - (i === 3 ? 170 : 210), -ph / 2 + 90 + i * 28, i === 3 ? 170 : 210, 8, 4) && g.fill());
+    drawPlay(g, pw / 2 + 0, 105);
+  });
+}
+function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); return true; }
+function drawPhoto(g, cx, cy, w, h) {
+  g.save(); g.translate(cx, cy);
+  g.fillStyle = '#EADFCB'; rr(g, -w / 2, -h / 2, w, h, 6); g.fill();
+  g.fillStyle = '#F7F0E3'; rr(g, -w / 2 + 14, -h / 2 + 14, w - 28, h - 28 - 24, 3); g.fill();
+  g.save(); g.beginPath(); g.rect(-w / 2 + 14, -h / 2 + 14, w - 28, h - 52); g.clip();
+  g.fillStyle = '#E9CDC0'; g.fillRect(-w / 2, -h / 2, w, h);
+  g.fillStyle = COL.red; g.beginPath(); g.arc(30, -45, 34, 0, 7); g.fill();
+  g.fillStyle = COL.burgHi; g.beginPath(); g.moveTo(-w / 2, h / 2); g.lineTo(-40, -10); g.lineTo(30, 70); g.lineTo(80, 25); g.lineTo(w / 2, h / 2); g.closePath(); g.fill();
+  g.restore(); g.restore();
+}
+function drawPlay(g, cx, cy) {
+  g.save(); g.translate(cx, cy);
+  g.fillStyle = COL.red; g.beginPath(); g.arc(0, 0, 54, 0, 7); g.fill();
+  g.fillStyle = COL.paper; g.beginPath(); g.moveTo(-14, -24); g.lineTo(28, 0); g.lineTo(-14, 24); g.closePath(); g.fill();
+  g.restore();
+}
+function scene4(c, t) {
+  const tl = t - T.s4;
+  const out = E.inCubic(prog(t, T.s5 - .25, T.s5));
+  const gk = E.inOut(prog(t, G0, G1));
+  const tg = bookTargets();
+  c.save(); c.globalAlpha = 1 - out;
+  WORDS4.forEach((w, n) => {
+    const k = prog(t, w.t, w.t + .75), e = E.outQuart(k);
+    // حركات مختلفة لكل كلمة
+    let o = { alpha: e, scale: 1, blur: (1 - e) * 10 }, X = CX, Y = w.y, clip = null;
+    if (n === 0) { Y += (1 - e) * 70; clip = [-500, -170, 1000, 340 * (.3 + .7 * e)]; }
+    if (n === 1) { o.scale = lerp(1.35, 1, e); }
+    if (n === 2) { X += (1 - e) * -260; }
+    // تجمّع نحو أماكن الكتاب
+    X = lerp(X, tg[n][0], gk); Y = lerp(Y, tg[n][1], gk);
+    o.scale *= lerp(1, .28, gk); o.alpha *= 1 - clamp((gk - .35) / .5); o.clip = null;
+    xf(c, X, Y, o, g => txt(g, w.s, 0, 0, 200, COL.ink, 500));
+    // علامات: رقم + خط + أقواس
+    const m = prog(t, w.t + .25, w.t + 1.0), fade = 1 - clamp(gk * 3);
+    if (fade > 0) {
+      const wd = 360 + w.s.length * 32;
+      c.save(); c.globalAlpha = fade * clamp(m * 2) * (1 - out);
+      c.strokeStyle = COL.red; c.lineWidth = 3;
+      // خط تحت الكلمة يرسم من اليمين
+      c.beginPath(); c.moveTo(CX + wd / 2, w.y + 138); c.lineTo(CX + wd / 2 - wd * E.outExpo(m), w.y + 138); c.stroke();
+      // أقواس زاوية
+      const L = 38 * E.outCubic(m), bx = wd / 2 + 40, by = 140;
+      [[1, -1], [-1, 1]].forEach(([sx, sy]) => { c.beginPath(); c.moveTo(CX + sx * bx, w.y + sy * by + (-sy) * L); c.lineTo(CX + sx * bx, w.y + sy * by); c.lineTo(CX + sx * (bx - L), w.y + sy * by); c.stroke(); });
+      c.restore();
+      xf(c, CX + wd / 2 + 20, w.y - 190, { alpha: fade * clamp(m * 2) * (1 - out) }, g => txt(g, w.n, 0, 0, 58, COL.red, 500));
+    }
+  });
+  drawBook(c, t);
+  // «كلها… في مكان واحد»
+  const k2 = prog(t, T.s4 + 3.45, T.s4 + 4.1), e2 = E.outQuart(k2);
+  xf(c, CX, 1450 + (1 - e2) * 40, { alpha: e2, blur: (1 - e2) * 10 }, g => {
+    txt(g, 'كلها… في مكان واحد', 0, 0, 98, COL.ink, 500);
+  });
+  c.restore();
+}
+
+/* ============ SCENE 5 — البرغندي + الشعار ============ */
+function wipeR(t) { return E.inOut(prog(t, T.s5, T.s5 + .75)) * 2400; }
+function scene5(c, t) {
+  const r = wipeR(t);
+  c.save(); c.beginPath(); c.arc(CX, 900, r, 0, 7); c.clip();
+  bg(c, COL.burg, COL.burgHi);
+  // حلقات خفيفة
+  c.strokeStyle = 'rgba(244,235,221,.07)'; c.lineWidth = 2;
+  [300, 520, 760].forEach(rr_ => { c.beginPath(); c.arc(CX, 900, rr_, 0, 7); c.stroke(); });
+  const tl = t - T.s5;
+  // الشعار — يُكشف من اليسار لليمين كأنه يُكتب
+  const k = E.inOut(prog(tl, .85, 1.95));
+  if (logoTint && k > 0) {
+    const lw = 880, lh = lw * logoBox.h / logoBox.w, ly = 760;
+    const off = document.createElement('canvas'); off.width = lw; off.height = Math.ceil(lh);
+    const g = off.getContext('2d'); g.drawImage(logoTint, 0, 0, lw, lh);
+    g.globalCompositeOperation = 'destination-in';
+    const f = 140, x = -f + (lw + f) * k;
+    const gr = g.createLinearGradient(x - f, 0, x, 0); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, lw, lh + 2);
+    c.save(); c.globalAlpha = clamp(k * 6); c.drawImage(off, CX - lw / 2, ly - lh / 2); c.restore();
+    // «| لحظات»
+    const a = E.outCubic(prog(tl, 1.55, 2.2));
+    xf(c, CX, ly + lh / 2 + 120 + (1 - a) * 24, { alpha: a, blur: (1 - a) * 8 }, g2 => {
+      const ww = tw(g2, 'لحظات', 118, 300);
+      txt(g2, 'لحظات', 0, 0, 118, COL.cream, 300);
+      g2.fillStyle = COL.redHi; g2.fillRect(-ww / 2 - 70, -3, 36 * a, 5); g2.fillRect(ww / 2 + 34, -3, 36 * a, 5);
+    });
+  }
+  // الشعار اللفظي
+  const a2 = E.outQuart(prog(tl, 2.05, 2.75));
+  xf(c, CX, 1180 + (1 - a2) * 40, { alpha: a2, blur: (1 - a2) * 10 }, g => txt(g, 'كل ذكرى تستحق أن تبقى', 0, 0, 80, COL.cream, 500));
+  // خط أحمر
+  const a3 = E.outExpo(prog(tl, 2.3, 3.0));
+  c.fillStyle = COL.redHi; c.fillRect(CX - 70 * a3, 1280, 140 * a3, 4);
+  // إنستغرام
+  const a4 = E.outCubic(prog(tl, 2.55, 3.15));
+  xf(c, CX, 1420 + (1 - a4) * 24, { alpha: a4 }, g => {
+    g.font = font(500, 62); g.direction = 'ltr'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillStyle = COL.cream;
+    const w = g.measureText(HANDLE).width; const tot = 68 + 22 + w; const x0 = -tot / 2;
+    g.save(); g.translate(0, 0); g.restore();
+    g.fillText(HANDLE, x0 + 90, 3);
+    drawInsta(g, x0 + 34, 0, 1);
+  });
+  frame(c, COL.cream, .22, 99);
+  c.restore();
+}
+function drawInsta(g, x, y, real) {
+  if (!real) return;
+  g.save(); g.translate(x, y); g.strokeStyle = COL.redHi; g.lineWidth = 5;
+  g.beginPath(); g.roundRect(-30, -30, 60, 60, 18); g.stroke();
+  g.beginPath(); g.arc(0, 0, 14, 0, 7); g.stroke();
+  g.fillStyle = COL.redHi; g.beginPath(); g.arc(19, -19, 3.5, 0, 7); g.fill(); g.restore();
+}
+
+/* ============ MAIN ============ */
+function draw(t) {
+  c = ctx; c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.filter = 'none';
+  // خلفية الكريمي مع تدرج بين المشاهد
+  const sandK = E.inOut(prog(t, T.s3 - .3, T.s3 + .1)) * (1 - E.inOut(prog(t, T.s4 - .3, T.s4 + .1)));
+  const base = mixHex(COL.cream, COL.sand, sandK);
+  bg(c, base, mixHex('#FBF4E8', '#F3E4CD', sandK));
+  frame(c, COL.red, .38 * (1 - prog(t, T.s5 - .1, T.s5 + .3)), t);
+  if (t < T.s2 + .2) scene1(c, t);
+  if (t >= T.s2 - .3 && t < T.s3 + .01) scene2(c, t);
+  if (t >= T.s3 - .01 && t < T.s4 + .01) scene3(c, t);
+  if (t >= T.s4 - .3 && t < T.s5 + .01) scene4(c, t);
+  finish(c, false);
+  if (t >= T.s5) { scene5(c, t); finishDark(c, t); }
+}
+function finishDark(c, t) {
+  const r = wipeR(t);
+  c.save(); c.beginPath(); c.arc(CX, 900, r, 0, 7); c.clip(); finish(c, true); c.restore();
+}
+let c;
+
+// أزمنة النبضات الصوتية (تُستخرج من نفس المنطق)
+function tickTimes() {
+  const out = []; let last = Math.floor(wheelPos(SP0));
+  for (let t = SP0; t <= SP1 + .5; t += 1 / 600) { const f = Math.floor(wheelPos(t)); if (f > last) { out.push(+t.toFixed(4)); last = f; } }
+  return out;
+}
+window.T = T; window.tickTimes = tickTimes; window.draw = draw; window.SP1 = SP1; window.M0 = M0; window.M1 = M1; window.G0 = G0;
+window.WORDS4 = WORDS4;
+window.ready = (async () => {
+  await Promise.all([document.fonts.load('300 100px Tajawal', 'ذكريات'), document.fonts.load('500 100px Tajawal', 'ذكريات')]);
+  await new Promise((res, rej) => { logoImg.onload = res; logoImg.onerror = rej; logoImg.src = 'assets/logo.png'; });
+  prepLogo(); buildParticles(); return true;
+})();
+</script>
+</body>
+</html>

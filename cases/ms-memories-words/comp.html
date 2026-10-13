@@ -43,8 +43,8 @@ function photo(c,x,y,w,h,seed,r=16){            // placeholder photographs — s
   const hill=(col,base,amp,ph)=>{c.fillStyle=col;c.beginPath();c.moveTo(x-4,y+h+4);for(let i=0;i<=16;i++){const u=i/16;c.lineTo(x+w*u,y+h*(base+amp*Math.sin(u*5+ph)));}c.lineTo(x+w+4,y+h+4);c.fill();};
   hill(P[3],0.66,0.07,R.p); hill(P[4],0.82,0.05,R.q); c.restore();
 }
-const logo=new Image(); logo.src='logo.png'; let logoCream=null, PAGESC=null; const SPINES={}, BOOKS={};
-const PH={}; const PHN=['roma','elisa','senior'];
+const logo=new Image(); logo.src='logo.png'; let logoCream=null, PAGESC=null; const SPINES={}, BOOKS={}, PCARDS=[];
+const PH={}; const PHN=['roma','elisa','senior','s1','s2','s3','s4','s5'];
 const phLoad=PHN.map(n=>{const im=new Image(); im.src='photos/'+n+'.jpg'; PH[n]=im; return im.decode().catch(()=>{});});
 function drawFit(c,im,x,y,w,h,r){ c.save(); c.beginPath(); c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath(); c.clip();
   const s=Math.max(w/im.width,h/im.height), iw=im.width*s, ih=im.height*s; c.drawImage(im,x+(w-iw)/2,y+(h-ih)/2,iw,ih); c.restore(); }
@@ -130,6 +130,13 @@ function book3D(cover,spine,pages,cx,cy,w,h,d,yaw,roll,persp,alpha=1){
   ctx.beginPath(); ctx.moveTo(fx,-h*k0/2); ctx.lineTo(fx+wf,-h*k1/2); ctx.lineTo(fx+wf,h*k1/2); ctx.lineTo(fx,h*k0/2); ctx.closePath(); ctx.fillStyle=g; ctx.fill();
   ctx.restore();
 }
+// a snapshot from the client's own photos, cut like an album clipping: white border, tape, a little weight
+function makePolaroid(name,tape){ const w=220,h=262,k=2,c=document.createElement('canvas'); c.width=w*k; c.height=h*k; const g=c.getContext('2d'); g.scale(k,k);
+  g.fillStyle=CARD; g.beginPath(); g.moveTo(8,0); g.arcTo(w,0,w,h,8); g.arcTo(w,h,0,h,8); g.arcTo(0,h,0,0,8); g.arcTo(0,0,w,0,8); g.closePath(); g.fill();
+  const R=OM.rng(3); for(let i=0;i<180;i++){ g.fillStyle=`rgba(120,100,80,${0.02+R()*0.03})`; g.fillRect(R()*w,R()*h,1+R()*2,1); }
+  drawFit(g,PH[name],12,12,196,196,3); g.strokeStyle='rgba(0,0,0,0.10)'; g.lineWidth=1; g.strokeRect(12.5,12.5,195,195);
+  if(tape){ g.save(); g.translate(w/2,4); g.rotate(-0.06); g.fillStyle='rgba(123,30,58,0.55)'; g.fillRect(-34,-13,68,26); g.fillStyle='rgba(255,255,255,0.18)'; g.fillRect(-34,-13,68,6); g.restore(); }
+  return c; }
 function groundShadow(cx,cy,w,a){ ctx.save(); ctx.globalAlpha=a; const g=ctx.createRadialGradient(cx,cy,0,cx,cy,w); g.addColorStop(0,'rgba(60,20,35,0.28)'); g.addColorStop(1,'rgba(60,20,35,0)'); ctx.translate(0,0); ctx.scale(1,0.18); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy/0.18,w,0,6.2832); ctx.fill(); ctx.restore(); }
 
 // ───────────────────────────────────────── underline of the logo (traced from the artwork) ─────────────────────────────────────────
@@ -178,10 +185,10 @@ function seek(t){
         const up=(1-sstep(t0+0.04,t0+0.24,t))*26-(sstep(t1-0.12,t1+0.1,t))*26; ctx.globalAlpha=a; ctx.fillText(s,PILL.x,PILL.y+15+up); }); ctx.restore();
       if(t<11.1){ const a=sstep(T.cut+0.2,T.cut+0.4,t); ctx.save(); ctx.globalAlpha=a; ctx.translate(PILL.x-pw/2+54,PILL.y); ctx.rotate(t*7); ctx.strokeStyle=CARD; ctx.lineWidth=5; ctx.lineCap='round'; ctx.beginPath(); ctx.arc(0,0,16,0,4.4); ctx.stroke(); ctx.restore(); } }
     // the photos
-    for(let i=0;i<7;i++){ const s0=T.cut+0.04*i, ap=spring(t-s0,0.6,18); if(ap<=0.01) continue; const suck=9.3+i*0.2, tk=spring(t-suck,0.92,9);
-      const ang=i/7*6.2832+t*1.1, ox=540+Math.cos(ang)*340, oy=800+Math.sin(ang)*230*1.0+Math.sin(t*2+i)*8;
+    for(let i=0;i<5;i++){ const s0=T.cut+0.05*i, ap=spring(t-s0,0.6,18); if(ap<=0.01) continue; const suck=9.3+i*0.26, tk=spring(t-suck,0.92,9);
+      const ang=i/5*6.2832+t*1.1, ox=540+Math.cos(ang)*340, oy=800+Math.sin(ang)*230*1.0+Math.sin(t*2+i)*8;
       const x=lerp(ox,PILL.x,tk), y=lerp(oy,PILL.y,tk), sz=lerp(190,40,tk), rot=ang*0.5+tk*1.2, op=clamp(ap,0,1)*(1-sstep(suck+0.55,suck+0.8,t));
-      if(op<=0.01||t>=T.fill) continue; ctx.save(); ctx.globalAlpha=op; ctx.translate(x,y); ctx.rotate(rot); photo(ctx,-sz/2,-sz/2,sz,sz,i%6,sz*0.14); ctx.restore(); }
+      if(op<=0.01||t>=T.fill) continue; ctx.save(); ctx.globalAlpha=op; ctx.translate(x,y); ctx.rotate(rot); { const cw=sz*1.12, ch=cw*262/220; ctx.shadowColor='rgba(0,0,0,0.45)'; ctx.shadowBlur=24*DPR; ctx.shadowOffsetY=10*DPR; ctx.drawImage(PCARDS[i],-cw/2,-ch/2,cw,ch); }; ctx.restore(); }
     // three books rise
     const cfg=[['senior',205,0.10,-0.42,11.7,'كتاب تخرج'],['roma',540,0,-0.24,11.4,'كتاب سفر'],['elisa',880,-0.10,0.34,12.0,'كتاب مولود']];
     cfg.forEach(([k,cx,roll,yaw,t0,cap])=>{ const u=spring(t-t0,0.82,9); if(u<=0.01||t>=T.fill+0.5) return; const y=lerp(2300,860,u)-8*(t-t0)*(u>0.95?1:0);
@@ -208,7 +215,7 @@ function seek(t){
 }
 window.__seek=async t=>seek(t);
 window.__ready=(async()=>{ await document.fonts.load('500 60px Tajawal'); await document.fonts.ready; try{await logo.decode();}catch(e){} await Promise.all(phLoad); COVERS.main=makeCover('main'); PAGESC=makePages(66,740); { const c=document.createElement('canvas'); c.width=logo.naturalWidth; c.height=logo.naturalHeight; const g=c.getContext('2d'); g.drawImage(logo,0,0); g.globalCompositeOperation='source-in'; g.fillStyle=PAPER; g.fillRect(0,0,c.width,c.height); logoCream=c; SPINES.main=makeSpine(66,740,BURG,PAPER,'',0,logoCream); const H0=470, defs=[['roma',736,1104,'#710100','#F6E8D0','ROMA · ITALY · 2026'],['elisa',852,1200,'#E8E8E8','#A80C0C','ELISA · 19'],['senior',675,1200,'#818181','#111111','SENIOR  2026']];
-    for(const [n,iw,ih,bg,fg,tx] of defs){ const w=Math.round(H0*iw/ih), d=46; BOOKS[n]={w,h:H0,d,cover:imgBook(n,w,H0),spine:makeSpine(d,H0,bg,fg,tx,24)}; if(n==='roma') BOOKS[n].pages=0; } PAGESC=makePages(66,740); BOOKS.pagesSmall=makePages(46,H0); } return seek(0); })();
+    for(const [n,iw,ih,bg,fg,tx] of defs){ const w=Math.round(H0*iw/ih), d=46; BOOKS[n]={w,h:H0,d,cover:imgBook(n,w,H0),spine:makeSpine(d,H0,bg,fg,tx,24)}; if(n==='roma') BOOKS[n].pages=0; } PAGESC=makePages(66,740); BOOKS.pagesSmall=makePages(46,H0); PCARDS.push(...['s1','s2','s3','s4','s5'].map((n,i)=>makePolaroid(n,i%2===0))); } return seek(0); })();
 window.__track=t=>{ const o={}; if(t>=6.55&&t<T.cut){ const b=BOOKP(t); o.book={x:b.x-260*b.zoom,y:b.y-370*b.zoom,w:520*b.zoom,h:740*b.zoom,op:1}; }
   if(t>=T.cut&&t<T.fill) o.pill={x:PILL.x-PILL.w/2,y:PILL.y-PILL.h/2,w:PILL.w,h:PILL.h,op:1}; return o; };
 window.__motion=(a,b)=>{ let m=0; if(a>=6.5&&b<=T.cut){ const p=BOOKP(a),q=BOOKP(b); m=Math.max(m,Math.hypot(p.x-q.x,p.y-q.y),Math.abs(p.zoom-q.zoom)*300); }

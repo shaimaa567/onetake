@@ -15,7 +15,7 @@ place(sub(60, 0.7), 7.05, 0.28, 0.0, 0.3)
 for t, f in ((7.35, 1046), (7.60, 1175), (7.85, 1318)): place(glass(f, 0.6, 0.7), t, 0.12, 0.0, 0.4)         # ticks
 place(air(0.45, 300, 4200, 1.6, 0.9), 8.33, 0.40, 0.0, 0.3)                                                  # the dive
 place(sub(48, 1.1), 8.78, 0.52, 0.0, 0.3)                                                                    # the cut
-for i in range(7): place(bubble(420 + 28 * i, 0.18), 9.32 + i * 0.2, 0.11, -0.3 + 0.1 * i, 0.3)            # photos pulled in
+for i in range(5): place(bubble(420 + 35 * i, 0.18), 9.32 + i * 0.26, 0.11, -0.3 + 0.15 * i, 0.3)            # photos pulled in
 place(wood(240, 0.07), 9.75, 0.2, 0.0, 0.2); place(wood(260, 0.07), 10.45, 0.2, 0.0, 0.2)
 place(glass(784, 1.2, 0.5), 11.15, 0.15, 0.0, 0.6); place(glass(1175, 1.4, 0.4), 11.17, 0.11, 0.0, 0.6)    # ✓ ready
 for t in (11.4, 11.7, 12.0): place(air(0.5, 300, 2400, 1.2, 0.5), t - 0.05, 0.18, 0.0, 0.4)                  # the books rise

@@ -43,8 +43,8 @@ function photo(c,x,y,w,h,seed,r=16){            // placeholder photographs — s
   const hill=(col,base,amp,ph)=>{c.fillStyle=col;c.beginPath();c.moveTo(x-4,y+h+4);for(let i=0;i<=16;i++){const u=i/16;c.lineTo(x+w*u,y+h*(base+amp*Math.sin(u*5+ph)));}c.lineTo(x+w+4,y+h+4);c.fill();};
   hill(P[3],0.66,0.07,R.p); hill(P[4],0.82,0.05,R.q); c.restore();
 }
-const logo=new Image(); logo.src='logo.png'; let logoCream=null;
-const PH={}; const PHN=['thai','maria','babyspread','o1','o2','o3','o4','o5','o6','o7'];
+const logo=new Image(); logo.src='logo.png'; let logoCream=null, PAGESC=null; const SPINES={}, BOOKS={};
+const PH={}; const PHN=['roma','elisa','senior'];
 const phLoad=PHN.map(n=>{const im=new Image(); im.src='photos/'+n+'.jpg'; PH[n]=im; return im.decode().catch(()=>{});});
 function drawFit(c,im,x,y,w,h,r){ c.save(); c.beginPath(); c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath(); c.clip();
   const s=Math.max(w/im.width,h/im.height), iw=im.width*s, ih=im.height*s; c.drawImage(im,x+(w-iw)/2,y+(h-ih)/2,iw,ih); c.restore(); }
@@ -78,9 +78,7 @@ function makeCover(kind){
   const w=520,h=740,k=2, c=document.createElement('canvas'); c.width=w*k; c.height=h*k; const g=c.getContext('2d'); g.scale(k,k);
   const rrg=(x,y,ww,hh,r)=>{g.beginPath();g.moveTo(x+r,y);g.arcTo(x+ww,y,x+ww,y+hh,r);g.arcTo(x+ww,y+hh,x,y+hh,r);g.arcTo(x,y+hh,x,y,r);g.arcTo(x,y,x+ww,y,r);g.closePath();};
   g.direction='rtl'; g.textAlign='center';
-  if(kind==='main'){ rrg(0,0,w,h,16); g.fillStyle=CARD; g.fill(); g.fillStyle=BURG; g.fillRect(0,0,38,h);
-    g.fillStyle='rgba(255,255,255,0.18)'; g.fillRect(38,0,3,h);
-    g.strokeStyle='rgba(22,18,17,0.22)'; g.lineWidth=2.5; rrg(1.5,1.5,w-3,h-3,16); g.stroke();
+  if(kind==='main'){ rrg(0,0,w,h,16); g.fillStyle=CARD; g.fill();     g.strokeStyle='rgba(22,18,17,0.22)'; g.lineWidth=2.5; rrg(1.5,1.5,w-3,h-3,16); g.stroke();
     if(logo.complete&&logo.naturalWidth){ const lw=400, lh=lw*LOGO_H/LOGO_W; g.drawImage(logo,282-lw/2,350-lh/2,lw,lh); g.strokeStyle=BURG; g.lineWidth=7; g.lineCap='round'; g.beginPath(); const o=[282-lw/2-0,350-lh/2]; const sc=lw/LOGO_W; g.moveTo(o[0]+(400-60)*sc,o[1]+(497-225)*sc); for(const [x,y] of [[460,488],[520,480],[580,474.5],[640,469.5],[700,465.5],[760,462.5],[820,459.5],[880,458.5],[915,458.5]]) g.lineTo(o[0]+(x-60)*sc,o[1]+(y-225)*sc); g.stroke(); }
     g.fillStyle='rgba(22,18,17,0.14)'; g.fillRect(150,150,260,2); g.fillRect(150,590,260,2);
     g.font='500 22px Tajawal'; g.fillStyle=BURG; g.textAlign='center'; g.direction='ltr'; g.letterSpacing='9px'; g.fillText('MEMORY BOOK',298,630); }
@@ -99,6 +97,37 @@ function cover3D(src,cx,cy,w,h,yaw,roll,persp,alpha=1){
   for(let i=0;i<n;i++){ const u=(i+0.5)/n-0.5, x=(i/n-0.5)*totalW, k=sc(u); ctx.drawImage(src,i*sw,0,sw,src.height,x,-h*k/2,totalW/n+0.8,h*k); }
   const k0=sc(-0.5),k1=sc(0.5), g=ctx.createLinearGradient(-totalW/2,0,totalW/2,0); g.addColorStop(0,`rgba(40,15,25,${0.10*Math.max(0,-s)})`); g.addColorStop(1,`rgba(40,15,25,${0.10*Math.max(0,s)})`);
   ctx.beginPath(); ctx.moveTo(-totalW/2,-h*k0/2); ctx.lineTo(totalW/2,-h*k1/2); ctx.lineTo(totalW/2,h*k1/2); ctx.lineTo(-totalW/2,h*k0/2); ctx.closePath(); ctx.fillStyle=g; ctx.fill();
+  ctx.restore();
+}
+function makeSpine(d,h,bg,fg,text,size,logoImg){
+  const k=2,c=document.createElement('canvas'); c.width=d*k; c.height=h*k; const g=c.getContext('2d'); g.scale(k,k);
+  g.fillStyle=bg; g.fillRect(0,0,d,h);
+  const sh=g.createLinearGradient(0,0,d,0); sh.addColorStop(0,'rgba(0,0,0,0.30)'); sh.addColorStop(0.28,'rgba(255,255,255,0.10)'); sh.addColorStop(0.62,'rgba(0,0,0,0)'); sh.addColorStop(1,'rgba(0,0,0,0.34)'); g.fillStyle=sh; g.fillRect(0,0,d,h);
+  const R=OM.rng(5); for(let i=0;i<260;i++){ g.fillStyle=`rgba(${R()<0.5?255:0},${R()<0.5?255:0},${R()<0.5?255:0},0.035)`; g.fillRect(R()*d,R()*h,1+R()*2,1+R()*2); }
+  g.save(); g.translate(d/2,h/2); g.rotate(Math.PI/2);
+  if(logoImg){ const lw=h*0.62, lh=lw*LOGO_H/LOGO_W; g.drawImage(logoImg,-lw/2,-lh/2,lw,lh); }
+  else { g.font=`500 ${size}px Tajawal`; g.direction='ltr'; g.textAlign='center'; g.textBaseline='middle'; g.letterSpacing=Math.round(size*0.22)+'px'; g.fillStyle=fg; g.fillText(text,0,2); }
+  g.restore(); return c;
+}
+function makePages(d,h){
+  const k=2,c=document.createElement('canvas'); c.width=d*k; c.height=h*k; const g=c.getContext('2d'); g.scale(k,k);
+  g.fillStyle='#F3ECDF'; g.fillRect(0,6,d,h-12); for(let y=7;y<h-6;y+=1.7){ g.fillStyle='rgba(120,100,70,0.10)'; g.fillRect(0,y,d,0.8); }
+  const sh=g.createLinearGradient(0,0,d,0); sh.addColorStop(0,'rgba(0,0,0,0.20)'); sh.addColorStop(0.5,'rgba(0,0,0,0)'); sh.addColorStop(1,'rgba(0,0,0,0.20)'); g.fillStyle=sh; g.fillRect(0,6,d,h-12);
+  g.fillStyle='rgba(255,255,255,0.55)'; g.fillRect(0,5,d,1.2); g.fillRect(0,h-6,d,1.2); return c;
+}
+function imgBook(name,w,h){ const k=2,c=document.createElement('canvas'); c.width=w*k; c.height=h*k; const g=c.getContext('2d'); g.scale(k,k); drawFit(g,PH[name],0,0,w,h,7);
+  g.fillStyle='rgba(0,0,0,0.16)'; g.fillRect(26,0,2.2,h); g.fillStyle='rgba(255,255,255,0.22)'; g.fillRect(28.2,0,1.6,h);       // the hinge groove of a hardcover
+  const gl=g.createLinearGradient(0,0,w,h); gl.addColorStop(0,'rgba(255,255,255,0.18)'); gl.addColorStop(0.45,'rgba(255,255,255,0)'); gl.addColorStop(1,'rgba(0,0,0,0.12)'); g.fillStyle=gl; g.fillRect(0,0,w,h);
+  g.strokeStyle='rgba(255,255,255,0.35)'; g.lineWidth=1.5; g.beginPath(); g.moveTo(0.8,h); g.lineTo(0.8,0.8); g.lineTo(w,0.8); g.stroke(); return c; }
+function book3D(cover,spine,pages,cx,cy,w,h,d,yaw,roll,persp,alpha=1){
+  const s=Math.sin(yaw), c=Math.abs(Math.cos(yaw)), wf=w*c, ws=d*Math.abs(s), tot=wf+ws, n=44;
+  const sc=x=>1+persp*s*x/w; ctx.save(); ctx.translate(cx,cy); ctx.rotate(roll); ctx.globalAlpha=alpha;
+  const strips=(src,x0,wid,m)=>{ for(let i=0;i<m;i++){ const xa=x0+wid*i/m, k=sc(xa+wid/m/2); ctx.drawImage(src,i*src.width/m,0,src.width/m,src.height,xa,-h*k/2,wid/m+0.9,h*k); } };
+  const L=-tot/2; let fx;
+  if(s<0){ strips(spine,L,ws,10); fx=L+ws; } else { fx=L; strips(pages,L+wf,ws,10); }
+  strips(cover,fx,wf,n);
+  const k0=sc(fx),k1=sc(fx+wf), g=ctx.createLinearGradient(fx,0,fx+wf,0); g.addColorStop(0,`rgba(30,10,15,${0.12*Math.max(0,-s)})`); g.addColorStop(1,`rgba(30,10,15,${0.12*Math.max(0,s)})`);
+  ctx.beginPath(); ctx.moveTo(fx,-h*k0/2); ctx.lineTo(fx+wf,-h*k1/2); ctx.lineTo(fx+wf,h*k1/2); ctx.lineTo(fx,h*k0/2); ctx.closePath(); ctx.fillStyle=g; ctx.fill();
   ctx.restore();
 }
 function groundShadow(cx,cy,w,a){ ctx.save(); ctx.globalAlpha=a; const g=ctx.createRadialGradient(cx,cy,0,cx,cy,w); g.addColorStop(0,'rgba(60,20,35,0.28)'); g.addColorStop(1,'rgba(60,20,35,0)'); ctx.translate(0,0); ctx.scale(1,0.18); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy/0.18,w,0,6.2832); ctx.fill(); ctx.restore(); }
@@ -129,7 +158,7 @@ function seek(t){
   // ── 4 · the book arrives tilted; a checklist; the camera dives in ──
   if(t>=6.55&&t<T.cut){ const b=BOOKP(t); const sh=groundShadow(540,1180,380,sstep(6.7,7.2,t)*(1-b.dive));
     ctx.save(); if(b.zoom>1){ const fx=540,fy=800; ctx.translate(fx,fy); ctx.scale(b.zoom,b.zoom); ctx.translate(-fx,-fy); }
-    cover3D(COVERS.main,b.x,b.y,520,740,b.yaw,b.roll,0.55); ctx.restore();
+    book3D(COVERS.main,SPINES.main,PAGESC,b.x,b.y,520,740,66,b.yaw,b.roll,0.55); ctx.restore();
     // checklist, lower third
     const rows=[['تصميم مخصص بالكامل',7.35],['صورك وتفاصيلك',7.6],['فيديوهات عبر QR',7.85]];
     rows.forEach(([txt,t0],i)=>{ const tk=OM.tick(t,t0), r=OM.wordRise(t,t0,{dist:24}); const y=1360+i*82, a=r.op*(1-sstep(8.3,8.5,t)); if(a<=0.01) return;
@@ -152,13 +181,13 @@ function seek(t){
     for(let i=0;i<7;i++){ const s0=T.cut+0.04*i, ap=spring(t-s0,0.6,18); if(ap<=0.01) continue; const suck=9.3+i*0.2, tk=spring(t-suck,0.92,9);
       const ang=i/7*6.2832+t*1.1, ox=540+Math.cos(ang)*340, oy=800+Math.sin(ang)*230*1.0+Math.sin(t*2+i)*8;
       const x=lerp(ox,PILL.x,tk), y=lerp(oy,PILL.y,tk), sz=lerp(190,40,tk), rot=ang*0.5+tk*1.2, op=clamp(ap,0,1)*(1-sstep(suck+0.55,suck+0.8,t));
-      if(op<=0.01||t>=T.fill) continue; ctx.save(); ctx.globalAlpha=op; ctx.translate(x,y); ctx.rotate(rot); drawFit(ctx,PH['o'+(i+1)],-sz/2,-sz/2,sz,sz,sz*0.14); ctx.restore(); }
+      if(op<=0.01||t>=T.fill) continue; ctx.save(); ctx.globalAlpha=op; ctx.translate(x,y); ctx.rotate(rot); photo(ctx,-sz/2,-sz/2,sz,sz,i%6,sz*0.14); ctx.restore(); }
     // three books rise
-    const cfg=[['maria',230,0.13,-0.30,11.7,'كتاب مناسبة'],['thai',540,0,0,11.4,'كتاب سفر'],['babyspread',850,-0.13,0.30,12.0,'كتاب مولود']];
-    cfg.forEach(([k,cx,roll,yaw,t0,cap])=>{ const u=spring(t-t0,0.82,9); if(u<=0.01||t>=T.fill+0.5) return; const y=lerp(2300,880,u)-8*(t-t0)*(u>0.95?1:0);
-      const sz=k==='thai'?[400,520]:k==='maria'?[340,459]:[360,450]; if(!COVERS[k]) COVERS[k]=imgCard(k,sz[0],sz[1]); const al=clamp(u*2,0,1)*(1-sstep(T.fill-0.1,T.fill+0.2,t));
-      cover3D(COVERS[k],cx,y,sz[0],sz[1],yaw*1.1,roll,0.35,al);
-      if(al>0.01){ ctx.save(); ctx.globalAlpha=al*sstep(t0+0.5,t0+0.8,t); ctx.font='500 34px Tajawal'; ctx.direction='rtl'; ctx.textAlign='center'; ctx.fillStyle='rgba(255,253,249,0.78)'; ctx.fillText(cap,cx,y+sz[1]/2+62); ctx.restore(); } });
+    const cfg=[['senior',205,0.10,-0.42,11.7,'كتاب تخرج'],['roma',540,0,-0.24,11.4,'كتاب سفر'],['elisa',880,-0.10,0.34,12.0,'كتاب مولود']];
+    cfg.forEach(([k,cx,roll,yaw,t0,cap])=>{ const u=spring(t-t0,0.82,9); if(u<=0.01||t>=T.fill+0.5) return; const y=lerp(2300,860,u)-8*(t-t0)*(u>0.95?1:0);
+      const bk=BOOKS[k], al=clamp(u*2,0,1)*(1-sstep(T.fill-0.1,T.fill+0.2,t));
+      book3D(bk.cover,bk.spine,BOOKS.pagesSmall,cx,y,bk.w,bk.h,bk.d,yaw,roll,0.35,al);
+      if(al>0.01){ ctx.save(); ctx.globalAlpha=al*sstep(t0+0.5,t0+0.8,t); ctx.font='500 34px Tajawal'; ctx.direction='rtl'; ctx.textAlign='center'; ctx.fillStyle='rgba(255,253,249,0.78)'; ctx.fillText(cap,cx,y+bk.h/2+58); ctx.restore(); } });
     // burgundy fills the screen from the pill
     if(t>=T.fill&&fillK>0){ const w=lerp(pw,W+80,fillK), h=lerp(PILL.h,H+80,fillK), cy=lerp(PILL.y,H/2,fillK), r=lerp(PILL.h/2,0,fillK); ctx.fillStyle=BURG; rr(W/2-w/2,cy-h/2,w,h,r); ctx.fill(); }
   }
@@ -178,7 +207,8 @@ function seek(t){
   return true;
 }
 window.__seek=async t=>seek(t);
-window.__ready=(async()=>{ await document.fonts.load('500 60px Tajawal'); await document.fonts.ready; try{await logo.decode();}catch(e){} await Promise.all(phLoad); COVERS.main=makeCover('main'); { const c=document.createElement('canvas'); c.width=logo.naturalWidth; c.height=logo.naturalHeight; const g=c.getContext('2d'); g.drawImage(logo,0,0); g.globalCompositeOperation='source-in'; g.fillStyle=PAPER; g.fillRect(0,0,c.width,c.height); logoCream=c; } return seek(0); })();
+window.__ready=(async()=>{ await document.fonts.load('500 60px Tajawal'); await document.fonts.ready; try{await logo.decode();}catch(e){} await Promise.all(phLoad); COVERS.main=makeCover('main'); PAGESC=makePages(66,740); { const c=document.createElement('canvas'); c.width=logo.naturalWidth; c.height=logo.naturalHeight; const g=c.getContext('2d'); g.drawImage(logo,0,0); g.globalCompositeOperation='source-in'; g.fillStyle=PAPER; g.fillRect(0,0,c.width,c.height); logoCream=c; SPINES.main=makeSpine(66,740,BURG,PAPER,'',0,logoCream); const H0=470, defs=[['roma',736,1104,'#710100','#F6E8D0','ROMA · ITALY · 2026'],['elisa',852,1200,'#E8E8E8','#A80C0C','ELISA · 19'],['senior',675,1200,'#818181','#111111','SENIOR  2026']];
+    for(const [n,iw,ih,bg,fg,tx] of defs){ const w=Math.round(H0*iw/ih), d=46; BOOKS[n]={w,h:H0,d,cover:imgBook(n,w,H0),spine:makeSpine(d,H0,bg,fg,tx,24)}; if(n==='roma') BOOKS[n].pages=0; } PAGESC=makePages(66,740); BOOKS.pagesSmall=makePages(46,H0); } return seek(0); })();
 window.__track=t=>{ const o={}; if(t>=6.55&&t<T.cut){ const b=BOOKP(t); o.book={x:b.x-260*b.zoom,y:b.y-370*b.zoom,w:520*b.zoom,h:740*b.zoom,op:1}; }
   if(t>=T.cut&&t<T.fill) o.pill={x:PILL.x-PILL.w/2,y:PILL.y-PILL.h/2,w:PILL.w,h:PILL.h,op:1}; return o; };
 window.__motion=(a,b)=>{ let m=0; if(a>=6.5&&b<=T.cut){ const p=BOOKP(a),q=BOOKP(b); m=Math.max(m,Math.hypot(p.x-q.x,p.y-q.y),Math.abs(p.zoom-q.zoom)*300); }

@@ -10,7 +10,7 @@
  "samples": "adaptive",
  "gap_px": 24.0,
  "samples_per_moving_frame": {
-  "4": 436,
+  "4": 415,
   "5": 4,
   "6": 1,
   "9": 1,
@@ -18,9 +18,9 @@
  },
  "workers": 3,
  "frames": 540,
- "still_frames": 96,
- "cut_frames": 77,
- "captures": 1995,
- "seconds": 177.4,
+ "still_frames": 117,
+ "cut_frames": 73,
+ "captures": 1953,
+ "seconds": 192.5,
  "final": false
 }

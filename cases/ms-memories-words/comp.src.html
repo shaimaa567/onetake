@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<!-- Ms. Memories · "words" · 1080×1920 · 18 s · built on onetake (PolyForm Noncommercial) -->
+<html lang="ar">
+<head>
+<meta charset="utf-8">
+<title>Ms. Memories · words</title>
+<style>
+@font-face{font-family:'Tajawal';font-weight:500;src:url(data:font/ttf;base64,__FONT__) format('truetype');}
+html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#FBF8F3}
+canvas{position:absolute;left:0;top:0;width:1080px;height:1920px}
+#hud{position:absolute;right:14px;bottom:10px;font:20px monospace;color:#c00;display:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas><div id="hud"></div>
+<script src="motion.js"></script>
+<script>
+// ───────────────────────────────────────── look ─────────────────────────────────────────
+const W=1080,H=1920,DUR=18,FPS=30;
+const BURG='#7B1E3A', INK='#161211', PAPER='#FBF8F3', CARD='#FFFDF9', DARK='#0B0709';
+const {clamp,lerp,sstep,spring,ease}=OM;
+const seg=(t,a,b)=>clamp((t-a)/(b-a),0,1);
+window.__meta={dur:DUR,fps:FPS,w:W,h:H,cuts:[8.78],inFrame:{}};
+const cv=document.getElementById('c'); const DPR=window.devicePixelRatio||1;
+cv.width=W*DPR; cv.height=H*DPR; const ctx=cv.getContext('2d');
+
+// ───────────────────────────────────────── timeline (s) ─────────────────────────────────────────
+// 0.3 words · 2.85 «حوّل» + the roll · 4.8 the sentence · 6.6 the book enters, tilted · 8.35 the camera dives in · 8.78 HARD CUT to dark
+// 8.9 photos are pulled into the pill · 11.4 three books rise · 13.2 the pill fills the screen · 13.75 the iris opens on paper
+// 14.2 the name is written · 16.4 call to action · 17.6 rest
+const T={ cut:8.78, books:11.4, fill:13.2, iris:13.75, name:14.2, cta:16.4 };
+
+// ───────────────────────────────────────── helpers ─────────────────────────────────────────
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+const PAL=[['#F3E4D6','#E8C4B2','#FBF3EA','#C98E86','#8C3A4B'],['#EFE7DC','#D8C3AE','#FFFFFF','#A89480','#5C4A3F'],
+  ['#F6E1E2','#DBA3AC','#FFF6F2','#B05468','#6D1A35'],['#E9E4DA','#BFB5A4','#FAF6EE','#8E8576','#3F3A33'],
+  ['#F4E6DC','#E2B9A0','#FFF8F0','#B87868','#7B1E3A'],['#EDE3E0','#C9A3A3','#FFF5F0','#9A5A64','#4E1A2B']];
+const HR=OM.rng(11), HILL=Array.from({length:16},()=>({a:HR(),b:HR(),p:HR()*6,q:HR()*6}));
+function photo(c,x,y,w,h,seed,r=16){            // placeholder photographs — swap for the client's own
+  const P=PAL[seed%PAL.length],R=HILL[seed%16]; c.save(); c.beginPath(); c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath(); c.clip();
+  const g=c.createLinearGradient(0,y,0,y+h); g.addColorStop(0,P[0]); g.addColorStop(1,P[1]); c.fillStyle=g; c.fillRect(x-4,y-4,w+8,h+8);
+  c.fillStyle=P[2]; c.beginPath(); c.arc(x+w*(0.28+0.44*R.a), y+h*(0.26+0.1*R.b), Math.min(w,h)*0.13,0,6.2832); c.fill();
+  const hill=(col,base,amp,ph)=>{c.fillStyle=col;c.beginPath();c.moveTo(x-4,y+h+4);for(let i=0;i<=16;i++){const u=i/16;c.lineTo(x+w*u,y+h*(base+amp*Math.sin(u*5+ph)));}c.lineTo(x+w+4,y+h+4);c.fill();};
+  hill(P[3],0.66,0.07,R.p); hill(P[4],0.82,0.05,R.q); c.restore();
+}
+const logo=new Image(); logo.src='logo.png';
+const LOGO_W=885, LOGO_H=315;
+
+// text: words land (RTL, first word on the right), then leave upward together
+function words(t,ws,size,cx,cy,t0,t1,color,stagger=0.09,weight=500){
+  if(t<t0-0.01||t>t1+0.5) return;
+  ctx.save(); ctx.font=`${weight} ${size}px Tajawal`; ctx.direction='rtl'; ctx.textAlign='center';
+  const wz=ws.map(w=>ctx.measureText(w).width), sp=size*0.3, total=wz.reduce((a,b)=>a+b,0)+sp*(ws.length-1);
+  const fit=Math.min(1,960/total), out=sstep(t1,t1+0.3,t); let x=cx+total*fit/2;
+  ws.forEach((w,i)=>{ x-=wz[i]*fit/2; const r=OM.wordRise(t,t0+i*stagger,{dist:34});
+    ctx.globalAlpha=r.op*(1-out); ctx.fillStyle=Array.isArray(color)?color[i]:color;
+    ctx.save(); ctx.translate(x,cy+r.y-out*34); ctx.scale(r.s*fit,r.s*fit); ctx.fillText(w,0,0); ctx.restore(); x-=wz[i]*fit/2+sp*fit; });
+  ctx.restore();
+}
+// a slot that rolls vertically through a list (the reference's «آلة الحظ», with our own words)
+function roll(t,list,t0,step,dur,cx,cy,size,fadeT0,fadeT1,color,hot){
+  let p=0; for(let k=1;k<list.length;k++) p+=ease.expoOut(seg(t,t0+(k-1)*step,t0+(k-1)*step+dur));
+  const a=sstep(t0-0.25,t0,t)*(1-sstep(fadeT0,fadeT1,t)); if(a<=0.01) return;
+  ctx.save(); ctx.font=`500 ${size}px Tajawal`; ctx.direction='rtl'; ctx.textAlign='center';
+  list.forEach((w,i)=>{ const d=i-p, ad=Math.abs(d); if(ad>1.7) return; const wd=ctx.measureText(w).width, fit=Math.min(1,900/wd);
+    ctx.save(); ctx.globalAlpha=a*clamp(1-ad*0.8,0,1)**1.3; ctx.filter=ad>0.12?`blur(${(ad*7*DPR).toFixed(1)}px)`:'none';
+    ctx.fillStyle=(i===list.length-1&&ad<0.5)?hot:color; ctx.translate(cx,cy+d*size*1.25-(1-a)*20); ctx.scale(fit*(1-0.1*ad),fit*(1-0.1*ad)); ctx.fillText(w,0,0); ctx.restore(); });
+  ctx.restore();
+}
+
+// ───────────────────────────────────────── covers (drawn once, tilted in 3D by strips) ─────────────────────────────────────────
+function makeCover(kind){
+  const w=520,h=740,k=2, c=document.createElement('canvas'); c.width=w*k; c.height=h*k; const g=c.getContext('2d'); g.scale(k,k);
+  const rrg=(x,y,ww,hh,r)=>{g.beginPath();g.moveTo(x+r,y);g.arcTo(x+ww,y,x+ww,y+hh,r);g.arcTo(x+ww,y+hh,x,y+hh,r);g.arcTo(x,y+hh,x,y,r);g.arcTo(x,y,x+ww,y,r);g.closePath();};
+  g.direction='rtl'; g.textAlign='center';
+  if(kind==='main'){ rrg(0,0,w,h,16); g.fillStyle=CARD; g.fill(); g.fillStyle=BURG; g.fillRect(0,0,38,h);
+    g.fillStyle='rgba(255,255,255,0.18)'; g.fillRect(38,0,3,h);
+    g.strokeStyle='rgba(22,18,17,0.22)'; g.lineWidth=2.5; rrg(1.5,1.5,w-3,h-3,16); g.stroke();
+    if(logo.complete&&logo.naturalWidth){ const lw=400, lh=lw*LOGO_H/LOGO_W; g.drawImage(logo,282-lw/2,350-lh/2,lw,lh); g.strokeStyle=BURG; g.lineWidth=7; g.lineCap='round'; g.beginPath(); const o=[282-lw/2-0,350-lh/2]; const sc=lw/LOGO_W; g.moveTo(o[0]+(400-60)*sc,o[1]+(497-225)*sc); for(const [x,y] of [[460,488],[520,480],[580,474.5],[640,469.5],[700,465.5],[760,462.5],[820,459.5],[880,458.5],[915,458.5]]) g.lineTo(o[0]+(x-60)*sc,o[1]+(y-225)*sc); g.stroke(); }
+    g.fillStyle='rgba(22,18,17,0.14)'; g.fillRect(150,150,260,2); g.fillRect(150,590,260,2);
+    g.font='500 22px Tajawal'; g.fillStyle=BURG; g.textAlign='center'; g.direction='ltr'; g.letterSpacing='9px'; g.fillText('MEMORY BOOK',298,630); }
+  if(kind==='travel'){ rrg(0,0,w,h,16); g.fillStyle=CARD; g.fill(); photo(g,36,36,w-72,h*0.64,0,10); g.fillStyle=BURG; g.fillRect(36,h*0.64+70,60,4);
+    g.font='500 64px Tajawal'; g.fillStyle=INK; g.textAlign='right'; g.fillText('رحلتنا',w-40,h-110); g.font='500 28px Tajawal'; g.fillStyle='rgba(22,18,17,0.55)'; g.fillText('كتاب سفر',w-40,h-60); }
+  if(kind==='grad'){ rrg(0,0,w,h,16); g.fillStyle=BURG; g.fill(); g.strokeStyle='rgba(255,253,249,0.55)'; g.lineWidth=2; g.strokeRect(36,36,w-72,h-72);
+    g.font='500 84px Tajawal'; g.fillStyle=CARD; g.fillText('تخرّجنا',w/2,h/2-10); g.fillStyle='rgba(255,253,249,0.6)'; g.fillRect(w/2-50,h/2+20,100,3); g.font='500 30px Tajawal'; g.fillText('كتاب تخرج',w/2,h/2+90); }
+  if(kind==='baby'){ rrg(0,0,w,h,16); g.fillStyle='#F3E1E2'; g.fill(); photo(g,110,90,300,300,2,150); g.font='500 70px Tajawal'; g.fillStyle=BURG; g.fillText('مولودنا',w/2,h-190); g.font='500 30px Tajawal'; g.fillStyle='rgba(22,18,17,0.55)'; g.fillText('كتاب مولود',w/2,h-130); }
+  return c;
+}
+const COVERS={main:null,travel:makeCover('travel'),grad:makeCover('grad'),baby:makeCover('baby')};
+function cover3D(src,cx,cy,w,h,yaw,roll,persp,alpha=1){
+  const c=Math.cos(yaw), n=48, sw=src.width/n, totalW=w*Math.abs(c), s=Math.sin(yaw);
+  ctx.save(); ctx.translate(cx,cy); ctx.rotate(roll); ctx.globalAlpha=alpha;
+  const sc=u=>1+persp*s*u;
+  for(let i=0;i<n;i++){ const u=(i+0.5)/n-0.5, x=(i/n-0.5)*totalW, k=sc(u); ctx.drawImage(src,i*sw,0,sw,src.height,x,-h*k/2,totalW/n+0.8,h*k); }
+  const k0=sc(-0.5),k1=sc(0.5), g=ctx.createLinearGradient(-totalW/2,0,totalW/2,0); g.addColorStop(0,`rgba(40,15,25,${0.10*Math.max(0,-s)})`); g.addColorStop(1,`rgba(40,15,25,${0.10*Math.max(0,s)})`);
+  ctx.beginPath(); ctx.moveTo(-totalW/2,-h*k0/2); ctx.lineTo(totalW/2,-h*k1/2); ctx.lineTo(totalW/2,h*k1/2); ctx.lineTo(-totalW/2,h*k0/2); ctx.closePath(); ctx.fillStyle=g; ctx.fill();
+  ctx.restore();
+}
+function groundShadow(cx,cy,w,a){ ctx.save(); ctx.globalAlpha=a; const g=ctx.createRadialGradient(cx,cy,0,cx,cy,w); g.addColorStop(0,'rgba(60,20,35,0.28)'); g.addColorStop(1,'rgba(60,20,35,0)'); ctx.translate(0,0); ctx.scale(1,0.18); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy/0.18,w,0,6.2832); ctx.fill(); ctx.restore(); }
+
+// ───────────────────────────────────────── underline of the logo (traced from the artwork) ─────────────────────────────────────────
+const LX=(W-LOGO_W)/2, LY=700-LOGO_H/2;
+const UL=[[400,497],[430,492],[460,488],[490,484],[520,480],[550,477],[580,474.5],[610,472],[640,469.5],[670,467.5],[700,465.5],[730,464],[760,462.5],[790,461],[820,459.5],[850,458.5],[880,458.5],[915,458.5]].map(([x,y])=>[LX+x-60,LY+y-225]);
+
+// ───────────────────────────────────────── seek ─────────────────────────────────────────
+const PILL={x:540,y:1250,w:560,h:100};
+const BOOKP=t=>{ // the main book: enters tilted from below, settles, then the camera dives
+  const k=spring(t-6.6,0.78,11), y=lerp(2350,800,k), yaw=lerp(-0.85,-0.30,k)+0.02*Math.sin(t*1.7)*(t>7.4?1:0), roll=lerp(-0.12,-0.07,k);
+  const dive=ease.expoIn(seg(t,8.35,8.78)); return {x:lerp(540,540,k),y,yaw,roll,zoom:1+dive*9,dive};
+};
+function seek(t){
+  ctx.setTransform(DPR,0,0,DPR,0,0); ctx.clearRect(0,0,W,H);
+  const dark=t>=T.cut&&t<T.fill; ctx.fillStyle=dark?DARK:PAPER; ctx.fillRect(0,0,W,H);
+  // ── 1 · paper: the words ──
+  words(t,['كل','ذكرى…'],104,540,820,0.3,2.6,[INK,BURG],0.12);
+  words(t,['لها','حكاية…'],104,540,950,0.95,2.6,[INK,INK],0.12);
+  words(t,['وكل','حكاية','تستحق','مكانًا','يبقى'],84,540,1085,1.55,2.6,[INK,INK,INK,INK,BURG],0.10);
+  // ── 2 · «حوّل» + the roll ──
+  words(t,['حوّل'],132,540,760,2.85,4.75,[INK]);
+  roll(t,['صورك','رحلاتك','تخرّجك','طفلك','مناسباتك العائلية'],3.15,0.36,0.30,540,1010,128,4.75,5.05,INK,BURG);
+  // ── 3 · the sentence ──
+  words(t,['إلى','كتاب','مصمم','خصيصًا','لك'],96,540,880,4.9,6.5,[INK,BURG,INK,INK,INK],0.10);
+  words(t,['صور،','تواريخ،','عبارات،','وقصص'],70,540,1040,5.6,6.5,[INK,INK,INK,BURG],0.12);
+  // ── 4 · the book arrives tilted; a checklist; the camera dives in ──
+  if(t>=6.55&&t<T.cut){ const b=BOOKP(t); const sh=groundShadow(540,1180,380,sstep(6.7,7.2,t)*(1-b.dive));
+    ctx.save(); if(b.zoom>1){ const fx=540,fy=800; ctx.translate(fx,fy); ctx.scale(b.zoom,b.zoom); ctx.translate(-fx,-fy); }
+    cover3D(COVERS.main,b.x,b.y,520,740,b.yaw,b.roll,0.55); ctx.restore();
+    // checklist, lower third
+    const rows=[['تصميم مخصص بالكامل',7.35],['صورك وتفاصيلك',7.6],['فيديوهات عبر QR',7.85]];
+    rows.forEach(([txt,t0],i)=>{ const tk=OM.tick(t,t0), r=OM.wordRise(t,t0,{dist:24}); const y=1360+i*82, a=r.op*(1-sstep(8.3,8.5,t)); if(a<=0.01) return;
+      ctx.save(); ctx.globalAlpha=a; ctx.translate(0,r.y);
+      ctx.fillStyle=tk.on?BURG:'rgba(22,18,17,0.12)'; ctx.beginPath(); ctx.arc(760,y,22*tk.s,0,6.2832); ctx.fill();
+      if(tk.on){ ctx.strokeStyle='#fff'; ctx.lineWidth=4; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.beginPath(); ctx.moveTo(750,y); ctx.lineTo(757,y+8); ctx.lineTo(771,y-8); ctx.stroke(); }
+      ctx.font='500 46px Tajawal'; ctx.direction='rtl'; ctx.textAlign='right'; ctx.fillStyle=INK; ctx.fillText(txt,716,y+16); ctx.restore(); }); }
+  // ── 5 · dark: photos fly around and are pulled into the pill ──
+  if(dark){
+    // pill (burgundy), its text rolls through the stages
+    const pin=spring(t-(T.cut+0.05),0.7,16), pw=PILL.w*(0.9+0.1*pin), ps=1+0.04*OM.ring(t-11.18,10,26);
+    const fillK=ease.expoInOut(seg(t,T.fill,T.fill+0.6));
+    if(t<T.fill+0.6){ ctx.save(); ctx.globalAlpha=clamp(pin*1.5,0,1); ctx.translate(PILL.x,PILL.y); ctx.scale(ps,ps); ctx.fillStyle=BURG; rr(-pw/2,-PILL.h/2,pw,PILL.h,PILL.h/2); ctx.fill(); ctx.restore(); }
+    const stages=[['نجمع صورك',T.cut+0.15],['نصمم صفحاتك',9.75],['نطبع كتابك',10.45],['✓ كتابك جاهز',11.15]];
+    if(t<T.fill){ ctx.save(); ctx.font='500 44px Tajawal'; ctx.direction='rtl'; ctx.textAlign='center'; ctx.fillStyle=CARD;
+      stages.forEach(([s,t0],i)=>{ const t1=i<3?stages[i+1][1]:99; const a=sstep(t0+0.04,t0+0.2,t)*(1-sstep(t1-0.12,t1+0.02,t)); if(a<=0.01) return;
+        const up=(1-sstep(t0+0.04,t0+0.24,t))*26-(sstep(t1-0.12,t1+0.1,t))*26; ctx.globalAlpha=a; ctx.fillText(s,PILL.x,PILL.y+15+up); }); ctx.restore();
+      if(t<11.1){ const a=sstep(T.cut+0.2,T.cut+0.4,t); ctx.save(); ctx.globalAlpha=a; ctx.translate(PILL.x-pw/2+54,PILL.y); ctx.rotate(t*7); ctx.strokeStyle=CARD; ctx.lineWidth=5; ctx.lineCap='round'; ctx.beginPath(); ctx.arc(0,0,16,0,4.4); ctx.stroke(); ctx.restore(); } }
+    // the photos
+    for(let i=0;i<7;i++){ const s0=T.cut+0.04*i, ap=spring(t-s0,0.6,18); if(ap<=0.01) continue; const suck=9.3+i*0.2, tk=spring(t-suck,0.92,9);
+      const ang=i/7*6.2832+t*1.1, ox=540+Math.cos(ang)*340, oy=800+Math.sin(ang)*230*1.0+Math.sin(t*2+i)*8;
+      const x=lerp(ox,PILL.x,tk), y=lerp(oy,PILL.y,tk), sz=lerp(190,40,tk), rot=ang*0.5+tk*1.2, op=clamp(ap,0,1)*(1-sstep(suck+0.55,suck+0.8,t));
+      if(op<=0.01||t>=T.fill) continue; ctx.save(); ctx.globalAlpha=op; ctx.translate(x,y); ctx.rotate(rot); photo(ctx,-sz/2,-sz/2,sz,sz,i%6,sz*0.14); ctx.restore(); }
+    // three books rise
+    const cfg=[['grad',250,0.13,-0.30,11.7],['travel',540,0,0,11.4],['baby',830,-0.13,0.30,12.0]];
+    cfg.forEach(([k,cx,roll,yaw,t0],i)=>{ const u=spring(t-t0,0.82,9); if(u<=0.01||t>=T.fill+0.5) return; const y=lerp(2300,880,u)-8*(t-t0)*(u>0.95?1:0);
+      cover3D(COVERS[k],cx,y,k==='travel'?400:340,k==='travel'?568:482,yaw*1.1,roll,0.35,clamp(u*2,0,1)*(1-sstep(T.fill-0.1,T.fill+0.2,t))); });
+    // burgundy fills the screen from the pill
+    if(t>=T.fill&&fillK>0){ const w=lerp(pw,W+80,fillK), h=lerp(PILL.h,H+80,fillK), cy=lerp(PILL.y,H/2,fillK), r=lerp(PILL.h/2,0,fillK); ctx.fillStyle=BURG; rr(W/2-w/2,cy-h/2,w,h,r); ctx.fill(); }
+  }
+  if(t>=T.fill&&!dark){ ctx.fillStyle=BURG; ctx.fillRect(0,0,W,H); }
+  // ── 6 · the iris opens on paper; the name is written ──
+  if(t>=T.iris){ const r=1400*ease.cubicInOut(seg(t,T.iris,T.iris+0.4)); ctx.save(); ctx.beginPath(); ctx.arc(540,700,r,0,6.2832); ctx.fillStyle=PAPER; ctx.fill(); ctx.restore(); }
+  if(t>=T.name&&logo.complete){ const u=ease.sineInOut(seg(t,T.name,T.name+0.95)), cx=LX+LOGO_W*u+1;
+    ctx.save(); ctx.beginPath(); ctx.rect(LX,0,cx-LX,H); ctx.clip(); ctx.drawImage(logo,LX,LY,LOGO_W,LOGO_H);
+    ctx.strokeStyle=BURG; ctx.lineWidth=11; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.beginPath(); ctx.moveTo(UL[0][0],UL[0][1]); for(const p of UL) ctx.lineTo(p[0],p[1]); ctx.stroke(); ctx.restore(); }
+  words(t,['كتب','ذكريات','مطبوعة','·','دعوات','رقمية','·','هدايا','مخصصة'],44,540,960,15.0,99,['rgba(22,18,17,0.62)'],0.07);
+  words(t,['كل','ذكرى','تستحق','أن','تبقى'],86,540,1085,15.4,99,[INK,INK,INK,INK,BURG],0.10);
+  // ── 7 · call to action; the handle is typed ──
+  if(t>=T.cta){ const p=spring(t-T.cta,0.65,18); ctx.save(); ctx.globalAlpha=clamp(p*1.6,0,1); ctx.translate(540,1290); const s=0.86+0.14*p; ctx.scale(s,s); ctx.fillStyle=INK; rr(-230,-52,460,104,52); ctx.fill();
+    ctx.font='500 46px Tajawal'; ctx.direction='rtl'; ctx.textAlign='center'; ctx.fillStyle='#fff'; ctx.fillText('اطلب كتابك',0,16); ctx.restore();
+    const H0='@msmemo.om', n=Math.floor(clamp((t-16.95)/0.62,0,1)*H0.length); const caret=(t>=16.9&&t<17.75&&Math.floor(t*3)%2===0)||n<H0.length&&t>=16.95;
+    ctx.save(); ctx.font='500 40px Tajawal'; ctx.direction='ltr'; ctx.letterSpacing='5px'; ctx.textAlign='left'; ctx.fillStyle=BURG; const full=ctx.measureText(H0).width; const txt=H0.slice(0,n);
+    ctx.globalAlpha=sstep(16.9,16.97,t); ctx.fillText(txt+(caret&&n<H0.length+1?'|':''),540-full/2,1440); ctx.restore(); }
+  document.getElementById('hud').textContent='t='+t.toFixed(3);
+  return true;
+}
+window.__seek=async t=>seek(t);
+window.__ready=(async()=>{ await document.fonts.load('500 60px Tajawal'); await document.fonts.ready; try{await logo.decode();}catch(e){} COVERS.main=makeCover('main'); return seek(0); })();
+window.__track=t=>{ const o={}; if(t>=6.55&&t<T.cut){ const b=BOOKP(t); o.book={x:b.x-260*b.zoom,y:b.y-370*b.zoom,w:520*b.zoom,h:740*b.zoom,op:1}; }
+  if(t>=T.cut&&t<T.fill) o.pill={x:PILL.x-PILL.w/2,y:PILL.y-PILL.h/2,w:PILL.w,h:PILL.h,op:1}; return o; };
+window.__motion=(a,b)=>{ let m=0; if(a>=6.5&&b<=T.cut){ const p=BOOKP(a),q=BOOKP(b); m=Math.max(m,Math.hypot(p.x-q.x,p.y-q.y),Math.abs(p.zoom-q.zoom)*300); }
+  if(a>=9&&b<=11.8) m=Math.max(m,Math.hypot(340*(Math.cos(a*1.1)-Math.cos(b*1.1)),230*(Math.sin(a*1.1)-Math.sin(b*1.1)))); if(a>=11.3&&b<=12.8) m=Math.max(m,Math.abs(1500*(spring(a-11.4,0.82,9)-spring(b-11.4,0.82,9))));
+  if(a>=T.fill-0.05&&b<=T.fill+0.7) m=Math.max(m,1200*Math.abs(ease.expoInOut(seg(a,T.fill,T.fill+0.6))-ease.expoInOut(seg(b,T.fill,T.fill+0.6)))); return m; };
+const q=new URLSearchParams(location.search);
+if(q.has('t')) __ready.then(()=>seek(parseFloat(q.get('t'))));
+if(q.has('hud')) document.getElementById('hud').style.display='block';
+if(q.has('play')) __ready.then(()=>{const t0=performance.now();(function loop(){seek(((performance.now()-t0)/1000)%DUR);requestAnimationFrame(loop);})();});
+</script>
+</body>
+</html>

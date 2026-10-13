@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<!-- TS trade · forex basics reel · built on onetake (lib/motion.js) · PolyForm Noncommercial 1.0.0 -->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>TS trade · forex basics</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+:root{ --ground:#ffffff; --ink:#0a0b0c; --blue:#0d4a7a; --mute:#7b8899; --line:#e3e9ef; --soft:#f2f6fa; }
+html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:var(--ground)}
+body{font-family:'Cairo',sans-serif;color:var(--ink)}
+#stage{position:absolute;inset:0;overflow:hidden;background:var(--ground)}
+canvas{position:absolute;left:0;top:0;width:1080px;height:1920px}
+.t{position:absolute;left:60px;right:60px;text-align:center;direction:rtl;will-change:transform,opacity;opacity:0}
+.hd{top:128px;font-size:86px;font-weight:800;line-height:1.3}
+.hd em{font-style:normal;color:var(--blue)}
+.cap{font-weight:500;font-size:50px;line-height:1.5;color:var(--ink)}
+.cap b{font-weight:800;color:var(--blue)}
+.cap b.k{color:var(--ink)}
+.lat{direction:ltr;unicode-bidi:isolate;display:inline-block}
+#pair{top:330px;font-size:40px;font-weight:500;color:var(--mute)}
+#pair b{color:var(--ink);font-weight:800}
+.lab{position:absolute;font-size:46px;font-weight:800;direction:rtl;white-space:nowrap;will-change:transform,opacity;opacity:0;color:var(--ink)}
+.lab{background:#fff;padding:0 14px;border-radius:12px}
+.lab.b{color:var(--blue)}
+#leg{top:1500px}
+.legrow{display:flex;justify-content:center;gap:36px;align-items:center}
+.legi{display:flex;align-items:center;gap:20px;font-size:44px;font-weight:800}
+.legi i{display:inline-block;width:30px;height:64px;border-radius:4px}
+#foot{top:1700px;font-size:36px;color:var(--mute);font-weight:500}
+#disc{top:1530px;font-size:34px;color:var(--mute);font-weight:500;line-height:1.6}
+#hud{position:absolute;right:14px;bottom:10px;font:13px monospace;color:#c00;display:none;direction:ltr}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv"></canvas>
+  <div id="hdr"></div>
+  <div id="pair" class="t"><b class="lat">EUR/USD</b> · اليورو مقابل الدولار</div>
+  <div id="caps"></div>
+  <div id="labs"></div>
+  <div id="leg" class="t"><div class="legrow">
+    <div class="legi"><i style="background:var(--blue)"></i><span>صاعدة</span></div>
+    <div class="legi" style="color:var(--mute);font-weight:500">|</div>
+    <div class="legi"><i style="background:var(--ink)"></i><span>هابطة</span></div></div></div>
+  <div id="foot" class="t">زوج الين الياباني: الـ Pip هو الرقم الثاني بعد الفاصلة</div>
+  <div id="disc" class="t">محتوى تعليمي وليس نصيحة استثمارية.<br>التداول ينطوي على مخاطر.</div>
+  <div id="hud"></div>
+</div>
+<script src="motion.js"></script>
+<script>
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// TS trade · "How forex prices move" · 30 s · 1080×1920 · every value is a pure function of t
+// Concept (ب): one price line becomes candles → the last price becomes BUY/SELL → its last digit is the pip → ticks become the logo.
+// ═════════════════════════════════════════════════════════════════════════════════════════
+const DUR=30, FPS=30, W=1080, H=1920;
+window.__meta={dur:DUR,fps:FPS,w:W,h:H};
+const {clamp,lerp,sstep,ssstep,spring,ease,spline}=OM;
+const seg=(t,a,b)=>clamp((t-a)/(b-a),0,1);
+const $=id=>document.getElementById(id);
+const INK='#0a0b0c', BLUE='#0d4a7a', MUTE='#7b8899', LINE='#e3e9ef', SOFT='#f2f6fa';
+
+// ───────────── data: one price path (in pips), candles are made from the same points ─────────────
+const N=16, PTS=12, X0=76, SW=58, BW=34, YT=690, YB=1370, BASE=1.0850;
+let _s=20240607; const rnd=()=>{_s=(_s*1664525+1013904223)>>>0;return _s/4294967296;};
+const KEYS=[0,-7,3,15,9,22,11,29,41,31,47,37,24,35,29,40,44];       // control points, pips
+const P=[]; for(let i=0;i<=N*PTS;i++){ const u=i/PTS, a=Math.floor(u), f=u-a, k0=KEYS[a], k1=KEYS[Math.min(a+1,KEYS.length-1)];
+  P.push(lerp(k0,k1,ease.sineInOut(f)) + (rnd()-.5)*(i%PTS===0?0:4.2)); }
+const PMIN=Math.min(...P), PMAX=Math.max(...P);
+const py=p=>lerp(YB,YT,(p-PMIN)/(PMAX-PMIN));
+const px=g=>X0+g*SW/PTS;
+const price=p=>BASE+p*0.0001;
+const CANDLES=[]; for(let k=0;k<N;k++){ const s=P.slice(k*PTS,(k+1)*PTS+1); CANDLES.push({o:s[0],c:s[PTS],h:Math.max(...s),l:Math.min(...s),cx:X0+(k+.5)*SW}); }
+const body=c=>Math.abs(c.c-c.o);
+let BULL=-1,BEAR=-1; CANDLES.forEach((c,k)=>{ if(k<3||k>12) return; if(c.c>c.o&&(BULL<0||body(c)>body(CANDLES[BULL]))) BULL=k; if(c.c<c.o&&(BEAR<0||body(c)>body(CANDLES[BEAR]))) BEAR=k; });
+const LAST=P[P.length-1], LASTP=price(LAST), SELLQ=LASTP, BUYQ=LASTP+0.0002;
+const f4=v=>v.toFixed(4);
+
+// ───────────── timeline (seconds) ─────────────
+const T={ line0:0.6, line1:4.7, div0:5.0, morph0:5.9, morphStep:0.06, morphDur:0.55,
+  bull0:7.6, bullLab:8.4, bear0:9.9, bearLab:10.6, back0:11.9, back1:12.8,
+  tag0:14.7, split0:15.1, split1:15.9, panel:15.95, buyPress:16.7, buy0:16.85, buy1:18.5, sellPress:19.1, sell0:19.25, sell1:20.9,
+  pip0:21.4, pip1:22.4, ruler0:23.3, rulerStep:0.1, bracket:24.8, endT:26.9, logo:27.3, word:27.8, disc:28.3 };
+
+// ───────────── copy ─────────────
+const HEADS=[ {t0:0.2,t1:4.9, html:'كيف يتحرك <em>سعر</em> العملة؟'},
+              {t0:5.0,t1:14.9, html:'اقرأ <em>الشموع</em> اليابانية'},
+              {t0:15.1,t1:21.3, html:'<span class="lat">BUY</span> أو <span class="lat">SELL</span>؟'},
+              {t0:21.5,t1:26.7, html:'ما هو الـ <em class="lat">Pip</em>؟'} ];
+const CAPS=[ {t0:2.2,t1:4.8,y:1560,html:'الفوركس: <b>تشتري</b> عملة وتبيع أخرى'},
+             {t0:5.2,t1:7.5,y:1560,html:'كل <b>شمعة</b> = فترة زمنية'},
+             {t0:8.5,t1:9.9,y:1560,html:'<b>صاعدة</b>: الإغلاق فوق الفتح'},
+             {t0:10.7,t1:11.9,y:1560,html:'<b class="k">هابطة</b>: الإغلاق تحت الفتح'},
+             {t0:15.3,t1:16.5,y:1330,html:'أمامك <b>قرار واحد</b>'},
+             {t0:16.55,t1:18.9,y:1330,html:'<b class="lat">BUY</b> = شراء<br>تتوقع أن السعر <b>سيرتفع</b>'},
+             {t0:19.0,t1:21.3,y:1330,html:'<b class="lat k">SELL</b> = بيع<br>تتوقع أن السعر <b class="k">سينخفض</b>'},
+             {t0:22.6,t1:24.5,y:1400,html:'أصغر حركة للسعر:<br><b>الرقم الرابع</b> بعد الفاصلة'},
+             {t0:24.6,t1:26.7,y:1400,html:'<span class="lat">10</span> نقاط = <b class="lat">10 Pips</b>'} ];
+const LABS=['أعلى سعر','إغلاق','فتح','أدنى سعر'];
+
+// ───────────── DOM ─────────────
+const hdEls=HEADS.map(h=>{const d=document.createElement('div');d.className='t hd';d.innerHTML=h.html;$('hdr').appendChild(d);return d;});
+const capEls=CAPS.map(c=>{const d=document.createElement('div');d.className='t cap';d.style.top=c.y+'px';d.innerHTML=c.html;$('caps').appendChild(d);return d;});
+const labEls=LABS.map((s,i)=>{const d=document.createElement('div');d.className='lab'+(i===1?' b':'');d.textContent=s;$('labs').appendChild(d);return d;});
+
+// ───────────── canvas ─────────────
+const cv=$('cv'), DPR=Math.max(1,window.devicePixelRatio||1); cv.width=W*DPR; cv.height=H*DPR; const ctx=cv.getContext('2d'); ctx.direction='ltr';
+function rr(x,y,w,h,r){ r=Math.min(r,w/2,h/2); ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+const mix=(a,b,k)=>{ const pa=[1,3,5].map(i=>parseInt(a.substr(i,2),16)), pb=[1,3,5].map(i=>parseInt(b.substr(i,2),16)); return 'rgb('+pa.map((v,i)=>Math.round(lerp(v,pb[i],k))).join(',')+')'; };
+const logoI=new Image(), logoW=new Image(); logoI.src='logo-icon.png'; logoW.src='logo-word.png';
+
+// morph progress for candle k (line slice → candle)
+const morphK=(t,k)=>ease.cubicOut(seg(t,T.morph0+k*T.morphStep,T.morph0+k*T.morphStep+T.morphDur));
+
+// camera: full chart, then in on the bull candle, whip to the bear candle, back out
+function camKeys(){
+  const fit=c=>{ const hgt=py(c.l)-py(c.h); const z=clamp(520/Math.max(hgt,60),2,4.2); return {x:c.cx+(540-330)/z, y:(py(c.h)+py(c.l))/2, zoom:z}; };
+  const A=fit(CANDLES[BULL]), B=fit(CANDLES[BEAR]);
+  return [{t:0,x:540,y:960,zoom:1},{t:T.bull0,x:540,y:960,zoom:1},
+          {t:T.bull0+0.8,...A,curve:ease.expoInOut},{t:T.bear0,...A},
+          {t:T.bear0+0.6,...B,curve:ease.expoInOut},{t:T.back0,...B},
+          {t:T.back1,x:540,y:960,zoom:1,curve:ease.cubicInOut}];
+}
+const CAMK=camKeys();
+
+// ───────────── drawing ─────────────
+function drawChart(t,alpha){
+  const cam=OM.camera(t,CAMK,{W,H}); const M=OM.view(cam,{W,H}); const sh=OM.shake(t,T.split0,{amp:6,seed:3});
+  ctx.save(); ctx.setTransform(DPR,0,0,DPR,0,0); ctx.globalAlpha=alpha;
+  ctx.beginPath(); ctx.rect(0,470,W,1030); ctx.clip();
+  ctx.translate(sh.x,sh.y); ctx.transform(M[0],M[1],M[2],M[3],M[4],M[5]);
+  const z=cam.zoom, lw=v=>v/ Math.pow(z,0.55);       // strokes thin out a little as we zoom in so they never turn to bars
+  // faint grid
+  ctx.strokeStyle=LINE; ctx.lineWidth=lw(2);
+  for(let i=0;i<=4;i++){ const y=lerp(YT,YB,i/4); ctx.beginPath(); ctx.moveTo(X0,y); ctx.lineTo(X0+N*SW,y); ctx.stroke(); }
+  // slice dividers drop in
+  for(let i=0;i<=N;i++){ const k=spring(t-(T.div0+i*0.03),0.8,18); if(k<=0) continue; const x=X0+i*SW;
+    ctx.strokeStyle=LINE; ctx.lineWidth=lw(2); ctx.beginPath(); ctx.moveTo(x,YT-30); ctx.lineTo(x,lerp(YT-30,YB+30,clamp(k,0,1))); ctx.stroke(); }
+  // line head progress
+  const hp=ease.sineInOut(seg(t,T.line0,T.line1)), idx=hp*(N*PTS);
+  // slices
+  for(let k=0;k<N;k++){
+    const u=morphK(t,k), c=CANDLES[k], g0=k*PTS, g1=(k+1)*PTS;
+    if(idx>g0 && u<1){                       // the line piece, collapsing toward the candle's centre column
+      const aLine=1-ssstep(0.55,1,u);
+      ctx.strokeStyle=BLUE; ctx.lineWidth=lw(6); ctx.lineJoin='round'; ctx.lineCap='round'; ctx.globalAlpha=alpha*aLine; ctx.beginPath();
+      const last=Math.min(g1,idx);
+      for(let g=g0;g<=Math.floor(last);g++){ const x=lerp(px(g),c.cx,u); g===g0?ctx.moveTo(x,py(P[g])):ctx.lineTo(x,py(P[g])); }
+      if(last>Math.floor(last)&&Math.floor(last)<g1){ const gf=Math.floor(last), f=last-gf, x=lerp(px(gf+f),c.cx,u), y=lerp(py(P[gf]),py(P[gf+1]),f); ctx.lineTo(x,y); }
+      ctx.stroke(); ctx.globalAlpha=alpha;
+    }
+    if(u>0){                                   // the candle: wick = the line's own extent, body = open → close
+      const bull=c.c>=c.o, col=bull?BLUE:INK, yH=py(c.h), yL=py(c.l), yO=py(c.o), yC=py(c.c);
+      const wk=ssstep(0.35,1,u); ctx.fillStyle=col;
+      ctx.fillRect(c.cx-lw(2.5)*0.5*2,lerp((yH+yL)/2,yH,wk),lw(5),Math.max(0.01,(yL-yH)*wk));
+      const bw=BW*u, top=Math.min(yO,yC), bh=Math.max(5,Math.abs(yC-yO))*u, mid=(yO+yC)/2;
+      ctx.fillRect(c.cx-bw/2,mid-bh/2+ (Math.abs(yC-yO)<5?0:0),bw,Math.max(bh,0.01));
+    }
+  }
+  // line head: dot + price tag while it is drawing
+  if(t>=T.line0-0.1&&t<T.morph0+0.3){
+    const g=Math.min(idx,N*PTS), gi=Math.floor(g), f=g-gi, p=gi>=N*PTS?P[N*PTS]:lerp(P[gi],P[gi+1],f), x=px(g), y=py(p);
+    const a=1-ssstep(T.morph0-0.4,T.morph0+0.2,t); ctx.globalAlpha=alpha*a;
+    ctx.fillStyle=INK; ctx.beginPath(); ctx.arc(x,y,lw(11),0,7); ctx.fill();
+    const label=f4(price(p)), fs=lw(36); ctx.font='800 '+fs+'px Cairo'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    const tw=ctx.measureText(label).width+lw(36), th=lw(60), tx=clamp(x,X0+tw/2,X0+N*SW-tw/2), ty=y-lw(62);
+    ctx.fillStyle=BLUE; rr(tx-tw/2,ty-th/2,tw,th,lw(14)); ctx.fill(); ctx.fillStyle='#fff'; ctx.fillText(label,tx,ty+lw(3));
+    ctx.globalAlpha=alpha;
+  }
+  // anatomy markers (in world space so they stay glued to the candle)
+  const anat=(k,t0)=>{ if(k<0) return; const c=CANDLES[k]; const pts=[[c.cx,py(c.h)],[c.cx+BW/2,py(c.c)],[c.cx+BW/2,py(c.o)],[c.cx,py(c.l)]];
+    pts.forEach((p,i)=>{ const s=spring(t-(t0+i*0.18),0.55,24); if(s<=0) return; ctx.fillStyle=(c.c>=c.o)?'#fff':'#fff'; ctx.strokeStyle=(c.c>=c.o)?BLUE:INK; ctx.lineWidth=lw(4);
+      ctx.beginPath(); ctx.arc(p[0],p[1],lw(11)*s,0,7); ctx.fillStyle='#fff'; ctx.fill(); ctx.stroke(); }); };
+  if(t>=T.bullLab&&t<T.bear0+0.6) anat(BULL,T.bullLab);
+  if(t>=T.bearLab&&t<T.back1) anat(BEAR,T.bearLab);
+  // last price: dashed level + tag at the end of the take
+  if(t>=T.tag0){ const k=spring(t-T.tag0,0.6,20), y=py(LAST), x=X0+N*SW; ctx.globalAlpha=alpha*clamp(k*1.5,0,1)*(1-ssstep(T.split0,T.split1,t)); ctx.setLineDash([10,10]); ctx.strokeStyle=BLUE; ctx.lineWidth=lw(3);
+    ctx.beginPath(); ctx.moveTo(X0,y); ctx.lineTo(x,y); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=alpha; }
+  ctx.restore();
+  return {M,cam};
+}
+
+// screen-space rect of the last-price tag (where BUY/SELL grow from)
+const TAG={x:X0+N*SW-170,y:py(LAST)-30,w:170,h:60};
+const SELLR={x:50,y:1020,w:455,h:190}, BUYR={x:575,y:1020,w:455,h:190}, PANEL={x:50,y:500,w:980,h:440};
+const PIPCARD={x:40,y:580,w:1000,h:500};
+const lerpR=(A,B,k)=>({x:lerp(A.x,B.x,k),y:lerp(A.y,B.y,k),w:lerp(A.w,B.w,k),h:lerp(A.h,B.h,k)});
+
+function drawButtons(t){
+  if(t<T.tag0||t>T.endT+0.6) return;
+  const kSplit=ease.expoOut(seg(t,T.split0,T.split1)), kIn=spring(t-T.tag0,0.6,20);
+  const sellPr=OM.press(t,T.sellPress,{depth:0.07}), buyPr=OM.press(t,T.buyPress,{depth:0.07});
+  const kPip=ease.expoInOut(seg(t,T.pip0,T.pip1)), exit=ssstep(T.pip0-0.1,T.pip0+0.4,t);
+  const vis=1-ssstep(T.pip1+0.1,T.pip1+0.35,t)*0; // buy card lives on into the pip scene
+  // before the split: the tag
+  if(t<T.split1){
+    const R=lerpR(TAG,{x:TAG.x,y:TAG.y,w:TAG.w,h:TAG.h},0); ctx.save(); ctx.setTransform(DPR,0,0,DPR,0,0);
+    const a=clamp(kIn*1.4,0,1)*(1-kSplit); ctx.globalAlpha=a; ctx.fillStyle=BLUE; rr(R.x,R.y,R.w,R.h,14); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='800 34px Cairo'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(f4(LASTP),R.x+R.w/2,R.y+R.h/2+3); ctx.restore();
+  }
+  if(t>=T.split0){
+    // SELL (black) grows from the tag's left half, BUY (blue) from its right half
+    const A1={x:TAG.x,y:TAG.y,w:TAG.w/2,h:TAG.h}, A2={x:TAG.x+TAG.w/2,y:TAG.y,w:TAG.w/2,h:TAG.h};
+    const R1=lerpR(A1,SELLR,kSplit), R2=lerpR(A2,BUYR,kSplit);
+    ctx.save(); ctx.setTransform(DPR,0,0,DPR,0,0);
+    // SELL
+    const so=1-ssstep(T.pip0-0.1,T.pip0+0.35,t);
+    ctx.globalAlpha=so; ctx.save(); ctx.translate(R1.x+R1.w/2,R1.y+R1.h/2); ctx.scale(sellPr.s,sellPr.s);
+    ctx.fillStyle=INK; rr(-R1.w/2,-R1.h/2,R1.w,R1.h,lerp(14,36,kSplit)); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.globalAlpha=so*ssstep(0.5,1,kSplit);
+    ctx.font='800 64px Cairo'; ctx.fillText('SELL',0,-34); ctx.font='500 46px Cairo'; ctx.fillText(f4(SELLQ),0,38); ctx.restore();
+    // BUY → becomes the pip card
+    const tgt=lerpR(R2,PIPCARD,kPip);
+    ctx.globalAlpha=1; ctx.save(); const sc=kPip>0?1:buyPr.s; ctx.translate(tgt.x+tgt.w/2,tgt.y+tgt.h/2); ctx.scale(sc,sc);
+    const fill=mix(BLUE,'#ffffff',ssstep(0.35,0.9,kPip)); ctx.fillStyle=fill; rr(-tgt.w/2,-tgt.h/2,tgt.w,tgt.h,lerp(36,44,kPip)); ctx.fill();
+    if(kPip>0.3){ ctx.strokeStyle=LINE; ctx.lineWidth=3; ctx.globalAlpha=ssstep(0.5,1,kPip); rr(-tgt.w/2,-tgt.h/2,tgt.w,tgt.h,44); ctx.stroke(); ctx.globalAlpha=1; }
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    const lab=1-ssstep(0,0.35,kPip); ctx.globalAlpha=ssstep(0.5,1,kSplit)*lab; ctx.fillStyle='#fff';
+    ctx.font='800 64px Cairo'; ctx.fillText('BUY',0,-34*(1-kPip)); ctx.globalAlpha=1;
+    // price: 46px on the button → 230px on the card; the last digit is the pip
+    const nTick=pipCount(t), cur=BUYQ+nTick*0.0001, s=f4(cur), fs=lerp(46,236,kPip), baseY=lerp(38,-10,kPip);
+    ctx.globalAlpha=ssstep(0.5,1,kSplit); ctx.font='500 '+fs+'px Cairo'; ctx.textAlign='left'; ctx.fillStyle='#fff';
+    const head=s.slice(0,-1), dig=s.slice(-1), wH=ctx.measureText(head).width; ctx.font='800 '+fs+'px Cairo'; const wD=ctx.measureText(dig).width; const x0=-(wH+wD)/2;
+    ctx.font='500 '+fs+'px Cairo'; ctx.fillStyle=mix('#ffffff',INK,ssstep(0.35,0.9,kPip)); ctx.fillText(head,x0,baseY);
+    const pop=nTick>0?OM.impact(t,pipTickT(nTick),{decay:9,omega:26,sqx:0.18,sqy:0.22}):{sx:1,sy:1};
+    ctx.save(); ctx.translate(x0+wH+wD/2,baseY); ctx.scale(pop.sx,pop.sy); ctx.font='800 '+fs+'px Cairo'; ctx.textAlign='center'; ctx.fillStyle=mix('#ffffff',BLUE,ssstep(0.35,0.9,kPip)); ctx.fillText(dig,0,0); ctx.restore();
+    // marker under the 4th decimal
+    if(kPip>0.85){ const m=ssstep(0.85,1,kPip); ctx.fillStyle=BLUE; ctx.globalAlpha=m; rr(x0+wH+4,baseY+fs*0.42,wD-8,10,5); ctx.fill();
+      ctx.font='800 40px Cairo'; ctx.textAlign='center'; ctx.fillText('PIP',x0+wH+wD/2,baseY+fs*0.42+58); }
+    ctx.restore();
+    const ea=ssstep(T.endT-0.2,T.endT+0.3,t); if(ea>0){ ctx.globalAlpha=ea; ctx.fillStyle='#fff'; ctx.fillRect(0,PIPCARD.y-40,W,PIPCARD.h+120); }
+    ctx.restore();
+  }
+}
+const pipTickT=n=>T.ruler0+n*T.rulerStep;
+const pipCount=t=>clamp(Math.floor((t-T.ruler0)/T.rulerStep)+1,0,10)*(t>=T.ruler0?1:0);
+
+function drawPanel(t){
+  if(t<T.panel||t>T.pip0+0.5) return;
+  const ei=OM.popIn(t,T.panel,{rise:50,s0:0.96,ds:0.04}), eo=OM.liftOut(t,T.pip0-0.1,{dur:0.3,dist:60});
+  const op=ei.op*eo.op; if(op<=0.01) return;
+  ctx.save(); ctx.setTransform(DPR,0,0,DPR,0,0); ctx.globalAlpha=op;
+  const cx=PANEL.x+PANEL.w/2, cy=PANEL.y+PANEL.h/2+ei.dy+eo.dy; ctx.translate(cx,cy); ctx.scale(ei.s*eo.s,ei.s*eo.s); ctx.translate(-PANEL.w/2,-PANEL.h/2);
+  const pw=PANEL.w, ph=PANEL.h;
+  ctx.fillStyle='#fff'; ctx.strokeStyle=LINE; ctx.lineWidth=3; rr(0,0,pw,ph,40); ctx.fill(); ctx.stroke();
+  const ey=ph/2, xa=70, xb=pw-70;                     // entry level
+  ctx.setLineDash([12,12]); ctx.strokeStyle=MUTE; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(xa,ey); ctx.lineTo(xb,ey); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle=MUTE; ctx.font='500 32px Cairo'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText('ENTRY '+f4(LASTP),xa,ey-26);
+  const run=(t0,t1,dir,col,lab)=>{ if(t<t0) return; const u=ease.sineInOut(seg(t,t0,t1)), n=Math.round(17*u);
+    const path=v=>{ const x=lerp(xa+40,xb-40,v); const y=ey-dir*170*ease.sineInOut(v)+Math.sin(v*17)*10*(1-v*0.4)*Math.min(1,v*5); return [x,y]; };
+    ctx.beginPath(); ctx.moveTo(xa+40,ey); const steps=60; let last=[xa+40,ey]; for(let i=1;i<=steps*u;i++){ last=path(i/steps); ctx.lineTo(last[0],last[1]); }
+    ctx.lineTo(last[0],ey); ctx.closePath(); ctx.fillStyle=col; ctx.globalAlpha=op*0.14; ctx.fill(); ctx.globalAlpha=op;
+    ctx.beginPath(); ctx.moveTo(xa+40,ey); for(let i=1;i<=steps*u;i++){ const p=path(i/steps); ctx.lineTo(p[0],p[1]); } ctx.strokeStyle=col; ctx.lineWidth=8; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.stroke();
+    ctx.fillStyle=col; ctx.beginPath(); ctx.arc(last[0],last[1],14,0,7); ctx.fill();
+    ctx.font='800 64px Cairo'; ctx.textAlign='left'; ctx.fillStyle=col; ctx.fillText('+'+n+' pips',50,70); };
+  const fadeBuy=1-ssstep(T.sellPress-0.35,T.sellPress-0.05,t);
+  ctx.save(); ctx.globalAlpha=op*fadeBuy; if(t<T.sellPress) run(T.buy0,T.buy1,+1,BLUE); ctx.restore();
+  if(t>=T.sell0) run(T.sell0,T.sell1,-1,INK);
+  ctx.restore();
+}
+
+function drawRuler(t){
+  if(t<T.ruler0-0.1||t>T.disc+1) return;
+  const X1=140, STEP=80, Y=1270; const out=ease.cubicInOut(seg(t,T.endT,T.logo));
+  ctx.save(); ctx.setTransform(DPR,0,0,DPR,0,0);
+  const oa=1-ssstep(T.endT-0.2,T.endT+0.3,t);
+  // ticks (each = 1 pip); at the end they gather into the logo's three candles
+  for(let j=0;j<=10;j++){ const k=spring(t-(T.ruler0-0.1+j*T.rulerStep),0.55,26); if(k<=0) continue;
+    const major=(j===0||j===10), h=(major?110:64)*clamp(k,0,1.15), x=X1+j*STEP, cxE=lerp(x,540,out), hE=lerp(h,0,out*0.9);
+    ctx.globalAlpha=clamp(k*1.5,0,1)*(1-out*0.9); ctx.fillStyle=(j<=pipCount(t))?BLUE:LINE; ctx.fillStyle=(j<=pipCount(t))?BLUE:'#cdd6df';
+    rr(cxE-5,Y-hE,10,Math.max(hE,0.01),5); ctx.fill(); }
+  ctx.globalAlpha=1;
+  ctx.strokeStyle='#cdd6df'; ctx.lineWidth=4; ctx.globalAlpha=oa; ctx.beginPath(); ctx.moveTo(X1,Y+14); ctx.lineTo(X1+10*STEP,Y+14); ctx.stroke(); ctx.globalAlpha=1;
+  // pips counter
+  if(t>=T.ruler0){ const n=pipCount(t); ctx.globalAlpha=oa; ctx.fillStyle=BLUE; ctx.font='800 66px Cairo'; ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillText('+'+n+' pips',540,Y+110); ctx.globalAlpha=1; }
+  // bracket 0 → 10
+  if(t>=T.bracket){ const k=ease.expoOut(seg(t,T.bracket,T.bracket+0.5)); ctx.globalAlpha=oa; ctx.strokeStyle=BLUE; ctx.lineWidth=5; ctx.beginPath();
+    const xa=X1, xb=X1+10*STEP*k; ctx.moveTo(xa,Y-135); ctx.lineTo(xb,Y-135); ctx.moveTo(xa,Y-135); ctx.lineTo(xa,Y-118); ctx.moveTo(xb,Y-135); ctx.lineTo(xb,Y-118); ctx.stroke(); ctx.globalAlpha=1; }
+  ctx.restore();
+}
+
+function drawEnd(t){
+  if(t<T.endT-0.2) return;
+  ctx.save(); ctx.setTransform(DPR,0,0,DPR,0,0);
+  const k=OM.popIn(t,T.logo,{zeta:0.55,omega:16,rise:30,s0:0.82,ds:0.18}), w=clamp(spring(t-T.word,0.9,14)*1.4,0,1);
+  const lw=380, lh=lw*(logoI.naturalHeight/logoI.naturalWidth||1.42);
+  ctx.globalAlpha=k.op; ctx.translate(540,830+k.dy); ctx.scale(k.s,k.s); ctx.drawImage(logoI,-lw/2,-lh/2,lw,lh); ctx.restore();
+  ctx.save(); ctx.setTransform(DPR,0,0,DPR,0,0); ctx.globalAlpha=w; const ww=520, wh=ww*(logoW.naturalHeight/logoW.naturalWidth||0.236); ctx.drawImage(logoW,540-ww/2,1130+(1-w)*20,ww,wh); ctx.restore();
+}
+
+// ───────────── anatomy labels: DOM text pinned to the candle through the camera ─────────────
+function placeLabels(t,M){
+  const scenes=[{k:BULL,t0:T.bullLab,t1:T.bear0+0.15},{k:BEAR,t0:T.bearLab,t1:T.back0+0.1}];
+  let sc=null; for(const s of scenes) if(s.k>=0&&t>=s.t0&&t<s.t1+0.35) sc=s;
+  if(!sc){ labEls.forEach(e=>e.style.opacity=0); return; }
+  const c=CANDLES[sc.k], pts=[[c.cx,py(c.h)],[c.cx+BW/2,py(c.c)],[c.cx+BW/2,py(c.o)],[c.cx,py(c.l)]].map(p=>OM.project(M,p[0],p[1]));
+  // order top→bottom on screen: labels keep their semantic text, positions are spaced ≥ 120 px apart
+  const ord=[0,1,2,3].sort((a,b)=>pts[a][1]-pts[b][1]); const ys={}; let prev=-1e9;
+  ord.forEach(i=>{ const y=Math.max(pts[i][1],prev+120); ys[i]=y; prev=y; });
+  const out=ssstep(sc.t1,sc.t1+0.3,t);
+  labEls.forEach((e,i)=>{ const s=spring(t-(sc.t0+i*0.18),0.6,22); e.style.color=(i===1&&c.c>=c.o)?BLUE:INK; e.style.opacity=clamp(s*1.5,0,1)*(1-out);
+    e.style.left='590px'; e.style.top=(ys[i]-34)+'px'; e.style.transform=`translateX(${((1-s)*40).toFixed(1)}px)`; });
+  // leader lines
+  ctx.save(); ctx.setTransform(DPR,0,0,DPR,0,0); ctx.strokeStyle=(c.c>=c.o)?BLUE:INK; ctx.lineWidth=3; ctx.globalAlpha=1-out;
+  pts.forEach((p,i)=>{ const s=spring(t-(sc.t0+i*0.18),0.6,22); if(s<=0) return; ctx.globalAlpha=clamp(s,0,1)*(1-out); ctx.beginPath(); ctx.moveTo(p[0]+16,p[1]); ctx.lineTo(580,ys[i]); ctx.stroke(); });
+  ctx.restore();
+}
+
+// ───────────── seek ─────────────
+function fadeEl(el,t,t0,t1,{y=24}={}){ const on=t>=t0-0.02&&t<t1+0.3; if(!on){ el.style.opacity=0; return; }
+  const w=OM.wordRise(t,t0,{dist:y}), o=OM.liftOut(t,t1,{dur:0.25,dist:40,blur:0,grow:0}); el.style.opacity=clamp(w.op*o.op,0,1); el.style.transform=`translateY(${(w.y+o.dy).toFixed(1)}px) scale(${(w.s*o.s).toFixed(4)})`; }
+function seek(t){
+  ctx.setTransform(DPR,0,0,DPR,0,0); ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+  const chartA=1-ssstep(T.split0,T.split1+0.3,t); const chartVis=1-ssstep(T.pip0,T.pip0+0.6,t);
+  const {M}=drawChart(t,clamp(chartA*chartVis,0,1));
+  drawPanel(t); drawButtons(t); drawRuler(t); drawEnd(t); placeLabels(t,M);
+  HEADS.forEach((h,i)=>fadeEl(hdEls[i],t,h.t0,h.t1,{y:34}));
+  CAPS.forEach((c,i)=>fadeEl(capEls[i],t,c.t0,c.t1));
+  fadeEl($('pair'),t,1.0,14.9,{y:16});
+  { const on=t>=12.95&&t<14.9; fadeEl($('leg'),t,12.95,14.9); }
+  fadeEl($('foot'),t,25.1,26.7,{y:14});
+  fadeEl($('disc'),t,T.disc,DUR+5,{y:14});
+  $('hud').textContent='t='+t.toFixed(3);
+  return Promise.resolve();
+}
+window.__seek=async t=>{ await seek(t); return true; };
+// events for the sound score
+window.__events=()=>{ const ev=[{t:T.line0,k:'sweep'}];
+  for(let i=0;i<=N;i++) ev.push({t:T.div0+i*0.03,k:'div',i});
+  for(let k=0;k<N;k++) ev.push({t:T.morph0+k*T.morphStep,k:'candle',i:k,bull:CANDLES[k].c>=CANDLES[k].o});
+  for(let i=0;i<4;i++){ ev.push({t:T.bullLab+i*0.18,k:'label',i}); ev.push({t:T.bearLab+i*0.18,k:'label',i}); }
+  ev.push({t:T.bull0,k:'whoosh'},{t:T.bear0,k:'whoosh'},{t:T.back0,k:'whoosh'});
+  ev.push({t:T.tag0,k:'tag'},{t:T.split0,k:'split'},{t:T.buyPress,k:'press',side:'buy'},{t:T.sellPress,k:'press',side:'sell'});
+  ev.push({t:T.pip0,k:'whoosh'});
+  for(let n=1;n<=10;n++) ev.push({t:pipTickT(n),k:'pip',n});
+  ev.push({t:T.bracket,k:'bracket'},{t:T.endT,k:'gather'},{t:T.logo,k:'logo'});
+  return ev; };
+window.__ready=document.fonts.load('800 40px Cairo','أب EUR 1.0850').then(()=>document.fonts.load('500 40px Cairo','أب 1.0850')).then(()=>Promise.all([logoI.decode().catch(()=>{}),logoW.decode().catch(()=>{})])).then(()=>seek(0));
+const q=new URLSearchParams(location.search);
+if(q.has('t')) __ready.then(()=>seek(parseFloat(q.get('t'))));
+if(q.has('hud')) $('hud').style.display='block';
+if(q.has('play')) __ready.then(()=>{const t0=performance.now();(function loop(){seek(((performance.now()-t0)/1000)%DUR);requestAnimationFrame(loop);})();});
+</script>
+</body>
+</html>

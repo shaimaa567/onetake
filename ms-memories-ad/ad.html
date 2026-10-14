@@ -21,7 +21,7 @@ const COL = {
   burg: '#4A0E1B', burgHi: '#6E1A2D', red: '#B3202E', redHi: '#DB4553', paper: '#FBF6EC'
 };
 // المشاهد (ثوانٍ) — مصدر واحد للصوت والصورة
-const T = { s2: 3.3, s3: 6.9, s4: 10.3, s5: 14.7, end: 18 };
+const T = { s2: 3.3, s3: 6.9, s4: 12.1, s5: 16.5, end: 22 };
 
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
@@ -242,34 +242,21 @@ function buildParticles() {
       ang: r() * Math.PI * 2, rad: 60 + r() * 330, dl: r() * .25, sz: 2.6 + r() * 1.8 });
   }
 }
-const M0 = T.s3 + 1.65, M1 = T.s3 + 3.0; // نافذة التفكيك
+const M0 = T.s3 + 2.1, M1 = T.s3 + 2.9;   // نافذة الانتقال بين العبارتين
 function scene3(c, t) {
   const tl = t - T.s3;
   const kA = prog(tl, .12, 1.15);
-  const morph = prog(t, M0, M1);
+  const aOut = E.inOut(prog(t, M0, M0 + .6));                 // العبارة الأولى تخفت بنعومة
+  const bIn = E.outCubic(prog(t, M0 + .4, M1 + .5));          // الثانية تتضح مكانها
   const out = E.inCubic(prog(t, T.s4 - .25, T.s4));
   c.save(); c.globalAlpha = 1 - out;
-  if (t < M0) {
-    drawA(c, 1, kA);
-  } else if (t < M1 + .25) {
-    // لحظة التحويل: يتلاشى النص الصلب إلى جسيمات
-    const fadeA = 1 - clamp(prog(t, M0, M0 + .22));
-    if (fadeA > 0) drawA(c, fadeA, 1);
-    const fadeB = clamp(prog(t, M1 - .05, M1 + .22));
-    if (fadeB > 0) drawB(c, fadeB, 0);
-    const dotA = clamp(prog(t, M0, M0 + .22)) * (1 - fadeB);
-    for (const p of P) {
-      const u = clamp((morph - p.dl) / (1 - .25));
-      const e = E.inOut(u), sw = Math.sin(Math.PI * u);
-      const ang = p.ang + e * 2.2;
-      const x = lerp(p.ax, p.bx, e) + Math.cos(ang) * p.rad * sw;
-      const y = lerp(p.ay, p.by, e) + Math.sin(ang) * p.rad * sw * .75;
-      const col = [0, 1, 2].map(k => Math.round(lerp(p.ca[k], p.cb[k], e)));
-      c.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`; c.globalAlpha = (1 - out) * dotA;
-      c.fillRect(x - p.sz / 2, y - p.sz / 2, p.sz, p.sz);
-    }
-  } else {
-    drawB(c, 1, prog(t, M1 + .25, M1 + .75));
+  if (aOut < .999) {
+    c.save(); c.translate(0, -34 * aOut); c.globalAlpha *= 1 - aOut; if (aOut > .02) c.filter = `blur(${aOut * 14}px)`;
+    drawA(c, 1, kA); c.restore();
+  }
+  if (bIn > .003) {
+    c.save(); c.translate(0, 34 * (1 - bIn)); c.globalAlpha *= bIn; if (bIn < .98) c.filter = `blur(${(1 - bIn) * 16}px)`;
+    drawB(c, 1, prog(t, M1, M1 + .8)); c.restore();
   }
   c.restore();
 }
@@ -473,7 +460,7 @@ window.ready = (async () => {
   await Promise.all([document.fonts.load('300 100px Tajawal', 'ذكريات'), document.fonts.load('500 100px Tajawal', 'ذكريات')]);
   await new Promise((res, rej) => { logoImg.onload = res; logoImg.onerror = rej; logoImg.src = 'assets/logo.png'; });
   await new Promise((res, rej) => { bookImg.onload = res; bookImg.onerror = rej; bookImg.src = 'assets/book_cutout.png'; });
-  prepLogo(); prepBook(); buildParticles(); return true;
+  prepLogo(); prepBook(); return true;
 })();
 </script>
 </body>

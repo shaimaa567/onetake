@@ -144,7 +144,7 @@ arpeggio(s5 + .5, END - .5, 1.2, .10, (0, 2, 4, 3))
 
 # ---------------- SFX synced to the picture ----------------
 # Scene 1: three word entrances
-for t0, m in [(.15, 69), (1.2, 72), (2.25, 76)]:
+for t0, m in [(.15, 69), (1.75, 72), (3.0, 76)]:
     place(whoosh(.9, 150, 900, .6, .10), t0 - .15, 1, pan=0, send=.3)
     place(pluck(midi(m - 12), 2.0, .1), t0 + .1, .30, send=.6)
 # bounce on the third word
@@ -159,7 +159,7 @@ place(thump(120, 45, 1.0), t_stop, .5, send=.3)
 place(bell(midi(81), 2.6), t_stop, .22, send=.6)
 # Scene 3: shimmer, morph riser, boom
 place(whoosh(.9, 150, 900, .5, .10), T["s3"] + .0, 1)
-M0, M1 = ev["M0"], ev["M1"]
+M0, M1 = ev["M0"], ev["B2T"]
 rise = whoosh(M1 - M0 + .1, 200, 2800, .92, .30)
 place(rise, M0 - .05, 1, pan=0, send=.5)
 place(sparkle(M1 - M0, 14, 1500, 3500, .10), M0, 1, pan=0, send=.6)
@@ -173,15 +173,15 @@ G0 = ev["G0"]
 place(whoosh(.85, 200, 1800, .7, .16), G0 - .1, 1)
 place(whoosh(.5, 800, 3000, .5, .10), G0 + .25, 1, pan=.2)  # page flip
 place(bell(midi(72), 2.4), G0 + .8, .22, send=.7)
-place(pluck(midi(67), 1.8, .1), T["s4"] + 3.5, .28, send=.6)
+place(pluck(midi(67), 1.8, .1), T["s4"] + 3.8, .28, send=.6)
 # Scene 5: wipe, logo write, tagline, handle
 w0 = T["s5"]
 place(whoosh(.8, 120, 1600, .55, .30), w0 - .05, 1, send=.4)
 place(thump(100, 34, 1.8), w0 + .05, .55, send=.3)
 place(bell(midi(72), 4), w0 + .75, .22, send=.8)
 place(sparkle(1.15, 12, 1500, 3500, .08), w0 + .85, 1, send=.7)
-place(bell(midi(79), 4), w0 + 1.95, .22, send=.8)
-place(pluck(midi(67), 2.0, .1), w0 + 2.05, .28, send=.6)
+place(bell(midi(79), 4), w0 + 2.0, .22, send=.8)
+place(pluck(midi(67), 2.0, .1), w0 + 3.3, .28, send=.6)
 
 # ---------------- reverb ----------------
 def make_ir(seed, dur=2.2):

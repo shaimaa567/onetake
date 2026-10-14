@@ -19,7 +19,7 @@ const fs = require('fs');
       fs.writeFileSync(`${outDir}/f_${String(i).padStart(4, '0')}.jpg`, Buffer.from(await grab(i / fps), 'base64'));
       if (i % 60 === 0) console.log('frame', i, '/', n);
     }
-    const ev = await page.evaluate(() => ({ T: window.T, ticks: window.tickTimes(), SP1: window.SP1, M0: window.M0, M1: window.M1, G0: window.G0, words4: window.WORDS4.map(w => w.t) }));
+    const ev = await page.evaluate(() => ({ T: window.T, ticks: window.tickTimes(), SP1: window.SP1, M0: window.M0, M1: window.M1, B2T: window.B2T, G0: window.G0, words4: window.WORDS4.map(w => w.t) }));
     fs.writeFileSync(`${outDir}/events.json`, JSON.stringify(ev));
   }
   await browser.close();

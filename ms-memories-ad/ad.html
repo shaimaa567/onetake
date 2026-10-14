@@ -21,7 +21,7 @@ const COL = {
   burg: '#4A0E1B', burgHi: '#6E1A2D', red: '#B3202E', redHi: '#DB4553', paper: '#FBF6EC'
 };
 // المشاهد (ثوانٍ) — مصدر واحد للصوت والصورة
-const T = { s2: 3.3, s3: 6.9, s4: 12.1, s5: 16.5, end: 22 };
+const T = { s2: 4.3, s3: 7.35, s4: 13.55, s5: 19.0, end: 27 };
 
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
@@ -149,27 +149,27 @@ function scene1(c, t) {
   const exit = (a, b) => E.inOut(prog(t, a, b));
   // ① ذكريات — تتضح تدريجيًا (تركيز العدسة)
   {
-    const i = E.outCubic(prog(t, .15, 1.15)), o = exit(1.15, 1.45);
+    const i = E.outCubic(prog(t, .15, 1.15)), o = exit(1.6, 1.9);
     xf(c, CX, Y, { alpha: i * (1 - o), blur: (1 - i) * 22 + o * 12, scale: lerp(1.1, 1, i) * lerp(1, .97, o) },
       g => wordDots3(g, 'ذكريات', S, COL.ink, COL.red, (t - .75) / .14));
   }
   // ② لحظات — انزلاق ناعم أفقي من اليمين
   {
-    const i = E.outQuart(prog(t, 1.2, 2.2)), o = exit(2.2, 2.5);
+    const i = E.outQuart(prog(t, 1.75, 2.75)), o = exit(2.9, 3.2);
     xf(c, CX + (1 - i) * 130 - o * 90, Y, { alpha: i * (1 - o), blur: (1 - i) * 16 + o * 12 },
-      g => wordDots3(g, 'لحظات', S, COL.ink, COL.red, (t - 1.8) / .14));
+      g => wordDots3(g, 'لحظات', S, COL.ink, COL.red, (t - 2.35) / .14));
   }
   // ③ حكايات — تنكشف صعودًا من خط القاعدة
   {
-    const i = E.outCubic(prog(t, 2.3, 3.2)), o = exit(3.1, 3.3);
+    const i = E.outCubic(prog(t, 3.0, 3.9)), o = exit(4.0, 4.25);
     xf(c, CX, Y + (1 - i) * 50, { alpha: clamp(i * 5) * (1 - o), blur: o * 14, clip: [-540, 150 - 300 * i, 1080, 300 * i + 40] },
-      g => wordDots3(g, 'حكايات', S, COL.ink, COL.red, (t - 2.85) / .14));
+      g => wordDots3(g, 'حكايات', S, COL.ink, COL.red, (t - 3.6) / .14));
   }
 }
 
 /* ============ SCENE 2 — كل ذكرى تبدأ بـ … (عجلة الكلمات) ============ */
 const WHEEL = ['صورة', 'رحلة', 'ضحكة', 'إنجاز', 'لحظة'];
-const SP0 = T.s2 + .8, SP1 = T.s2 + 2.8, STEPS = 14;
+const SP0 = T.s2 + .6, SP1 = T.s2 + 2.25, STEPS = 14;
 const wheelPos = t => { const p = prog(t, SP0, SP1); return STEPS * (1 - Math.pow(1 - p, 3.4)); };
 function scene2(c, t) {
   const tl = t - T.s2;
@@ -219,9 +219,9 @@ function drawA(c, alpha = 1, k = 1) { // k: تقدم الكشف
     xf(c, CX, y, { alpha: alpha, clip: [wd / 2 - wd * q, -150, wd * q, 300] }, g => txt(g, s, 0, 0, 108, COL.ink, 500));
   });
 }
-function drawB(c, alpha = 1, pop = 0) {
-  xf(c, CX, 850, { alpha }, g => txt(g, 'ماذا لو أصبحت', 0, 0, 108, COL.ink, 300));
-  xf(c, CX, 1060, { alpha, scale: 1 + .05 * Math.sin(Math.PI * pop) * (1 - pop) }, g => txt(g, 'كتابًا؟', 0, 0, 240, COL.red, 500));
+function drawB(c, a1 = 1, a2 = 1) {
+  xf(c, CX, 850 + (1 - a1) * 30, { alpha: a1, blur: (1 - a1) * 14 }, g => txt(g, 'ماذا لو أصبحت', 0, 0, 108, COL.ink, 300));
+  xf(c, CX, 1060 + (1 - a2) * 30, { alpha: a2, blur: (1 - a2) * 16, scale: lerp(1.1, 1, a2) }, g => txt(g, 'كتابًا؟', 0, 0, 240, COL.red, 500));
 }
 let P = null; // نقاط التفكيك
 function buildParticles() {
@@ -242,32 +242,29 @@ function buildParticles() {
       ang: r() * Math.PI * 2, rad: 60 + r() * 330, dl: r() * .25, sz: 2.6 + r() * 1.8 });
   }
 }
-const M0 = T.s3 + 2.1, M1 = T.s3 + 2.9;   // نافذة الانتقال بين العبارتين
+const M0 = T.s3 + 3.5, M1 = T.s3 + 4.2, B2T = T.s3 + 5.2;   // نافذة الانتقال بين العبارتين
 function scene3(c, t) {
   const tl = t - T.s3;
-  const kA = prog(tl, .12, 1.15);
+  const kA = prog(tl, .12, 4.35);
   const aOut = E.inOut(prog(t, M0, M0 + .6));                 // العبارة الأولى تخفت بنعومة
-  const bIn = E.outCubic(prog(t, M0 + .4, M1 + .5));          // الثانية تتضح مكانها
   const out = E.inCubic(prog(t, T.s4 - .25, T.s4));
   c.save(); c.globalAlpha = 1 - out;
   if (aOut < .999) {
     c.save(); c.translate(0, -34 * aOut); c.globalAlpha *= 1 - aOut; if (aOut > .02) c.filter = `blur(${aOut * 14}px)`;
     drawA(c, 1, kA); c.restore();
   }
-  if (bIn > .003) {
-    c.save(); c.translate(0, 34 * (1 - bIn)); c.globalAlpha *= bIn; if (bIn < .98) c.filter = `blur(${(1 - bIn) * 16}px)`;
-    drawB(c, 1, prog(t, M1, M1 + .8)); c.restore();
-  }
+  const b1 = E.outCubic(prog(t, M0 + .3, M0 + 1.0)), b2 = E.outCubic(prog(t, B2T - .05, B2T + .75));
+  if (b1 > .003) drawB(c, b1, b2);
   c.restore();
 }
 
 /* ============ SCENE 4 — صورك / تفاصيلك / حكايتك → كتاب ============ */
 const WORDS4 = [
   { s: 'صورك', y: 690, t: T.s4 + .1, n: '٠١' },
-  { s: 'تفاصيلك', y: 920, t: T.s4 + .85, n: '٠٢' },
-  { s: 'حكايتك', y: 1150, t: T.s4 + 1.6, n: '٠٣' },
+  { s: 'تفاصيلك', y: 920, t: T.s4 + 1.2, n: '٠٢' },
+  { s: 'حكايتك', y: 1150, t: T.s4 + 2.45, n: '٠٣' },
 ];
-const G0 = T.s4 + 2.4, G1 = T.s4 + 3.1; // تجمّع الكلمات
+const G0 = T.s4 + 3.55, G1 = T.s4 + 4.25; // تجمّع الكلمات
 function bookTargets() { return [[CX, 830], [CX, 830], [CX, 830]]; }
 const bookImg = new Image();
 // الكتاب الواقعي: ظلال حقيقية + الصفحة اليسرى تنفتح من العمود
@@ -367,7 +364,7 @@ function scene4(c, t) {
   });
   drawBook(c, t);
   // «كلها… في مكان واحد»
-  const k2 = prog(t, T.s4 + 3.45, T.s4 + 4.1), e2 = E.outQuart(k2);
+  const k2 = prog(t, T.s4 + 3.75, T.s4 + 4.4), e2 = E.outQuart(k2);
   xf(c, CX, 1330 + (1 - e2) * 40, { alpha: e2, blur: (1 - e2) * 10 }, g => {
     txt(g, 'كلها… في مكان واحد', 0, 0, 74, COL.ink, 500);
   });
@@ -396,7 +393,7 @@ function scene5(c, t) {
     g.fillStyle = gr; g.fillRect(0, 0, lw, lh + 2);
     c.save(); c.globalAlpha = clamp(k * 6); c.drawImage(off, CX - lw / 2, ly - lh / 2); c.restore();
     // «| لحظات»
-    const a = E.outCubic(prog(tl, 1.55, 2.2));
+    const a = E.outCubic(prog(tl, 2.0, 2.7));
     xf(c, CX, ly + lh / 2 + 100 + (1 - a) * 24, { alpha: a, blur: (1 - a) * 8 }, g2 => {
       const ww = tw(g2, 'لحظات', 92, 300);
       txt(g2, 'لحظات', 0, 0, 92, COL.cream, 300);
@@ -404,13 +401,13 @@ function scene5(c, t) {
     });
   }
   // الشعار اللفظي
-  const a2 = E.outQuart(prog(tl, 2.05, 2.75));
+  const a2 = E.outQuart(prog(tl, 3.25, 4.0));
   xf(c, CX, 1130 + (1 - a2) * 40, { alpha: a2, blur: (1 - a2) * 10 }, g => txt(g, 'كل ذكرى تستحق أن تبقى', 0, 0, 60, COL.cream, 500));
   // خط أحمر
-  const a3 = E.outExpo(prog(tl, 2.3, 3.0));
+  const a3 = E.outExpo(prog(tl, 3.5, 4.2));
   c.fillStyle = COL.redHi; c.fillRect(CX - 60 * a3, 1215, 120 * a3, 4);
   // إنستغرام
-  const a4 = E.outCubic(prog(tl, 2.55, 3.15));
+  const a4 = E.outCubic(prog(tl, 4.0, 4.7));
   xf(c, CX, 1340 + (1 - a4) * 24, { alpha: a4 }, g => {
     g.font = font(500, 50); g.direction = 'ltr'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillStyle = COL.cream;
     const w = g.measureText(HANDLE).width; const tot = 68 + 22 + w; const x0 = -tot / 2;
@@ -454,7 +451,7 @@ function tickTimes() {
   for (let t = SP0; t <= SP1 + .5; t += 1 / 600) { const f = Math.floor(wheelPos(t)); if (f > last) { out.push(+t.toFixed(4)); last = f; } }
   return out;
 }
-window.T = T; window.tickTimes = tickTimes; window.draw = draw; window.SP1 = SP1; window.M0 = M0; window.M1 = M1; window.G0 = G0;
+window.T = T; window.tickTimes = tickTimes; window.draw = draw; window.SP1 = SP1; window.M0 = M0; window.M1 = M1; window.B2T = B2T; window.G0 = G0;
 window.WORDS4 = WORDS4;
 window.ready = (async () => {
   await Promise.all([document.fonts.load('300 100px Tajawal', 'ذكريات'), document.fonts.load('500 100px Tajawal', 'ذكريات')]);
